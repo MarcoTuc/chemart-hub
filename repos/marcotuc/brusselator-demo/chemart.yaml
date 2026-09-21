@@ -1,0 +1,5 @@
+hub:
+  repo_type: network
+  title: Brusselator demo (test of the pull-request flow)
+  tags:
+  - test
