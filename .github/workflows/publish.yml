@@ -19,7 +19,7 @@ concurrency:
 
 env:
   CHEMART_REPO: MarcoTuc/Chemart
-  CHEMART_REF: hub-static
+  CHEMART_REF: chemart-library
 
 jobs:
   build:
