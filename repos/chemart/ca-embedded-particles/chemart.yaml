@@ -26,6 +26,9 @@ chemistries:
   family: automata
   kind: analysis
   constructive: false
+  type: gas
+  clock: iterations
+  duration: steps
   S:
     repr: 'A molecule is a *particle*: a spatially localised, temporally periodic wall between two regular
       domains of a one-dimensional binary CA, visible as a propagating structure once the domains are
@@ -48,10 +51,10 @@ chemistries:
       leaving one of the domains behind
 
       '
-    notes: 'With reactions=published the network is the published interaction table of the chosen rule,
-      complete and exactly as printed. With reactions=observed the CA is actually run: the reactions are
-      the collisions that fired, each with its count, and the network may also contain events involving
-      dislocations or a particle leaving/entering the filtered description.
+    notes: 'generate_network returns the published interaction table of the chosen rule, complete and
+      exactly as printed. chemart.evolve actually runs the CA: the reactions are the collisions that fired,
+      each with its count, and the network may also contain events involving dislocations or a particle
+      leaving/entering the filtered description.
 
       '
   A:
@@ -78,18 +81,8 @@ chemistries:
     meaning: 'which published radius-3 rule to use: phi-par-a and phi-par-b are the two density-classification
       CAs evolved by the genetic algorithm of Crutchfield, Mitchell & Das (their Tables 3 and 4 give the
       particle catalogs); gkl is the hand-designed Gacs-Kurdyumov-Levin rule, which has the same three
-      domains but no published particle catalog. phi-par-b is offered with reactions=published only (see
-      decisions)'
-  - name: reactions
-    type: enum
-    default: observed
-    choices:
-    - observed
-    - published
-    role: structural
-    meaning: 'observed: run the automaton and record the particle interactions that actually fired, with
-      counts (status observed); published: return the rule''s published particle interaction table as
-      a complete network, without running anything'
+      domains but no published particle catalog. phi-par-b''s catalog can be generated but the automaton
+      cannot be run, and gkl can be run but has no catalog to generate (see decisions)'
   - name: lattice
     type: int
     default: 149
@@ -97,15 +90,18 @@ chemistries:
     max: 5000
     range: the papers measure performance at N = 149, 599 and 999; the book's figure 10.14 uses 75
     role: spatial
+    face: evolve
     meaning: number of cells N of the periodic lattice
   - name: steps
     type: int
     default: 298
-    min: 1
+    min: 0
     max: 20000
     range: the task's answer time is T_max = 2N
     role: population
-    meaning: CA iterations to run; more iterations means more observed collisions
+    face: evolve
+    meaning: CA iterations to run; more iterations means more observed collisions. 0 runs the automaton
+      until the caller stops reading its frames
   - name: density
     type: float
     default: 0.48
@@ -114,6 +110,7 @@ chemistries:
     range: the published space-time figures use rho_0 = 0.48 and 0.51; performance is measured over ICs
       drawn uniformly, which is what the module's performance() does
     role: population
+    face: evolve
     meaning: 'density rho_0 of the initial configuration: exactly round(rho_0 N) cells are set to 1, in
       random positions (this is the only use of the seed)'
   - name: filter_window
@@ -122,6 +119,7 @@ chemistries:
     min: 1
     max: 16
     role: structural
+    face: evolve
     meaning: 'half-width of the window used by the domain filter: a site belongs to a domain when the
       2w+1 sites around it agree with one spatial phase of that domain''s pattern. The default 3 is the
       CA radius, so the window is the neighbourhood; larger values demand wider domain patches and so
@@ -178,9 +176,19 @@ chemistries:
   - 'The book describes the idea and shows one filtered space-time diagram; everything quantitative (rules,
     domains, particles, velocities, interaction tables, performances) is reconstructed from the papers
     above, hence fidelity: reconstructed.'
-  - 'kind stays analysis: the entry is a method for reading a reaction network out of a cellular automaton.
-    It is exposed both ways: reactions=published hands back the published interaction table (complete),
-    reactions=observed runs the automaton and reports the collisions that fired with their counts (observed).'
+  - 'kind stays analysis: the entry is a method for reading a reaction network out of a cellular automaton.'
+  - 'Two faces, replacing the former reactions parameter (published / observed). generate_network returns
+    the published particle interaction table of the rule (the old reactions=published), a written-down
+    network with status complete: nothing is run, so only rule applies and the seed plays no part; extras.space
+    describes the rule, and no longer carries a random initial lattice that nothing iterated. chemart.evolve
+    runs the automaton (the old reactions=observed) and yields a frame per CA iteration: the particles
+    present (by name), the interactions recorded in that iteration, and the density of 1s. An interaction
+    is recorded when its event settles, up to 4 iterations after the collision, and the events still open
+    at the end go into the last frame. The network holds the interactions that fired with their counts;
+    its initial_state is the particle population at the condensation time t_c, while the first frame is
+    the population at iteration 0. The former extras.analysis.population (particle counts at up to 50
+    iterations) is the frames'' state. The type stays gas (borderline): the chemistry is what a run of
+    the automaton shows, and the catalog is the published summary of such runs.'
   - 'Look-up tables are embedded verbatim as the published hexadecimal strings. The expansion convention
     is the sources'' own (hex digits left to right give the 128 output bits in lexicographic order of
     neighbourhood, the leftmost bit being the output for neighbourhood 0000000). It is verified independently:
@@ -191,13 +199,13 @@ chemistries:
     different (05040587 05000f77 03775583 7bffb77f); both reproduce the published performance within sampling
     error (measured P_149 = 0.78 for each against 0.775 and 0.769 published), so the difference is a transcription
     slip in one of the two papers and the later, catalogued form is used.
-  - 'phi_par^b is offered with reactions=published only. Its look-up table as printed in Crutchfield,
+  - 'phi_par^b is offered through generate_network only. Its look-up table as printed in Crutchfield,
     Mitchell & Das Table 1 (00240066A0A02246 76EFEFFFFBFFAAFE, checked against the typeset page, not only
     the extracted text) never classifies density in our implementation: measured P_149 = 0.00 against
     the published 0.766, under the same bit convention that reproduces GKL and phi_par^a, and under row
     swaps, bit reversal and complementation. A search over all 480 single-hexadecimal-digit corrections
     found none that reaches P = 0.6. The published catalog of Table 4 is therefore offered as data, and
-    running that automaton is refused rather than reported as the published rule.'
+    chemart.evolve refuses to run that automaton rather than report it as the published rule.'
   - 'GKL has no published particle catalog in these sources. Its space-time behaviour has the same three
     domains (Mitchell, Hraber & Crutchfield describe its checkerboard signal and its white-to-black boundary),
     but its walls are not phi_par^a''s particles: measured by probe(), GKL''s Λ0Λ2 wall moves +3 where
@@ -205,7 +213,7 @@ chemistries:
     boundaries are the other way round (Λ0Λ1 is stable and Λ1Λ0 decays). Borrowing the Greek names would
     therefore attach published velocities to walls that do not have them, so for GKL every wall is reported
     by the domains it separates (wΛ0Λ2 and so on) with a measured velocity, and no interaction table is
-    claimed: reactions=published is refused for GKL.'
+    claimed: generate_network refuses GKL.'
   - 'The domain filter is the published construction in spirit, not the published transducer: a site is
     assigned to a domain when the 2w+1 sites around it (w = filter_window, default the CA radius 3, i.e.
     the neighbourhood) agree with one spatial phase of that domain''s pattern, and the maximal runs of
@@ -240,7 +248,7 @@ chemistries:
     and shows alpha decaying into gamma and mu.'
   - 'Dropped v1 parameters: `rule` was an int CA rule number and `r` the radius; both are properties of
     the published rule, which is now a named choice, and every rule here is radius 3. `lattice_len` became
-    `lattice`. Added: reactions, steps, density and filter_window.'
+    `lattice`. Added: steps, density and filter_window.'
   - 'Not implemented: the epsilon-machine reconstruction that discovers the domains automatically (the
     domains of the catalogued rules are given); the ballistic embedded-particle model that predicts P_N
     from the catalog and the particle distribution at t_c; interaction-result probabilities and three-particle
