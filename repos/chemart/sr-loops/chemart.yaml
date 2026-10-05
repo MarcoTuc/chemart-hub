@@ -34,6 +34,9 @@ chemistries:
   family: automata
   kind: generator
   constructive: true
+  type: gas
+  clock: steps
+  duration: steps
   S:
     repr: 'Two readings (book 10.7.2), chosen with `mode`. (a) macro: an emergent loop pattern is a molecule.
       A loop is a connected group of at least min_loop_cells non-quiescent cells; two loops are the same
@@ -105,12 +108,13 @@ chemistries:
   - name: steps
     type: int
     default: 320
-    min: 1
+    min: 0
     max: 2000000
     range: one replication takes 151 steps (Langton, SDSR), 25 (Byl), 15 (Chou-Reggia), 363 (evoloop);
       the SDSR steady state needs a few thousand and evolution in the evoloop 10^4-10^7
     role: population
-    meaning: synchronous updates of the lattice
+    meaning: 'synchronous updates of the lattice. 0 runs the automaton on until the caller stops reading
+      its frames (mode micro only: macro settles its species names at the end of the run)'
   - name: boundary
     type: enum
     default: periodic
@@ -151,8 +155,8 @@ chemistries:
     min: 1
     max: 100000
     role: population
-    meaning: 'macro mode: observe the loops every this many steps (higher is faster but misses loops that
-      live shorter than one interval)'
+    meaning: 'macro mode: observe the loops every this many steps, one frame per observation (higher is
+      faster but misses loops that live shorter than one interval)'
   provides:
   - topology
   - stoichiometry
@@ -244,6 +248,15 @@ chemistries:
     The number of states and the neighbourhood are properties of the chosen rule, not free knobs; grid
     becomes the lattice side; seed_loop becomes ancestor_pattern (a Golly RLE string); dissolution is
     what distinguishes rule=sdsr and rule=evoloop from rule=langton.'
+  - 'chemart.evolve runs the automaton; the time is the step of the automaton. Macro: a frame per observation
+    of the loops (step 0, then every track_every steps and the last step); its state counts the loops
+    of each species, its fired lists the births and deaths since the previous observation, and its observable
+    cells lists the sizes of the living loops. Because species are merged retrospectively (a loop is its
+    mother''s species once it shows her configuration), the names are settled only when the run ends,
+    so the macro frames are all yielded then. Micro: a frame per step, its state the number of cells in
+    each non-quiescent state and its fired the transitions of that step. The former extras.analysis.population
+    (a thinned copy of the macro series) and extras.analysis.cells (micro) are gone; chemart.evolve(...,
+    every=k) thins the frames. generate_network runs the automaton and returns the network.'
   - 'Not implemented: the Tempesti (1995), Perrier (1996) and Sexyloop (2007) variants, and von Neumann''s
     29-state automaton [453]; the evoloop gene sequence (G/T/C) reading of Salzberg et al.; the loops''
     interaction with ''hostile'' environments [739].'
