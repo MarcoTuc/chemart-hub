@@ -33,6 +33,7 @@ chemistries:
   family: wet
   kind: wet
   constructive: false
+  type: generator
   S:
     repr: 'DNA duplexes with 4-nt 5'' sticky ends, plus the FokI enzyme: the input molecule at every processing
       stage, the eight transition (software) molecules T1-T8, the FokI-software and FokI-software-input
