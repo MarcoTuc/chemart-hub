@@ -20,6 +20,7 @@ chemistries:
   family: application
   kind: generator
   constructive: false
+  type: given
   S:
     repr: A, B (buffered), X, Y (dynamic), D, E (waste)
     definition: explicit

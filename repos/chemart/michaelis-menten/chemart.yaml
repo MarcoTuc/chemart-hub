@@ -22,6 +22,7 @@ chemistries:
   family: systems-biology
   kind: generator
   constructive: false
+  type: given
   S:
     repr: E, S, ES, P (elementary) or S, P (abridged)
     definition: explicit

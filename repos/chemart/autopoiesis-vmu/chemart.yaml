@@ -28,6 +28,9 @@ chemistries:
   family: origin-of-life
   kind: generator
   constructive: false
+  type: given
+  clock: steps
+  duration: steps
   S:
     repr: 'One particle per site of a 2D toroidal lattice: hole, substrate (O), catalyst (*) or link ([O]).
       A link carries up to two bonds to neighbouring links and may hold one absorbed substrate, so the
@@ -66,16 +69,6 @@ chemistries:
 
       '
   params:
-  - name: mode
-    type: enum
-    default: lattice
-    choices:
-    - lattice
-    - reactions
-    role: structural
-    meaning: 'lattice: run the lattice and return the reactions that fired, with counts (status observed),
-      the grid in extras.space and the membrane measurements in extras.analysis; reactions: the reactions
-      the chemistry defines, as a complete network'
   - name: initial
     type: enum
     default: substrate
@@ -83,6 +76,7 @@ chemistries:
     - substrate
     - cell
     role: structural
+    face: evolve
     meaning: 'substrate: the book''s figure 6.3 at t = 0, a catalyst surrounded by substrate; cell: start
       from a ready-made cell, the twelve-link closed membrane around the catalyst of Von Kamp (2002) figure
       2'
@@ -93,6 +87,7 @@ chemistries:
     max: 400
     range: Von Kamp (2002) figure 2 uses a 30 x 30 world
     role: spatial
+    face: evolve
     meaning: lattice width (toroidal)
   - name: height
     type: int
@@ -101,6 +96,7 @@ chemistries:
     max: 400
     range: Von Kamp (2002) figure 2 uses a 30 x 30 world
     role: spatial
+    face: evolve
     meaning: lattice height (toroidal)
   - name: steps
     type: int
@@ -110,7 +106,9 @@ chemistries:
     range: spontaneous formation of a cell from a bare catalyst takes thousands of steps; Von Kamp's runs
       go to 50,000
     role: population
-    meaning: time steps; in each one every particle moves and acts once
+    face: evolve
+    meaning: time steps; in each one every particle moves and acts once. 0 runs the lattice until the
+      caller stops reading its frames
   - name: n_catalysts
     type: int
     default: 1
@@ -118,6 +116,7 @@ chemistries:
     max: 1000
     range: the book's figure 6.3 starts from a single catalyst
     role: population
+    face: evolve
     meaning: catalysts; the first is placed at the centre of the lattice, any others at random
   - name: substrate_density
     type: float
@@ -125,6 +124,7 @@ chemistries:
     min: 0.0
     max: 1.0
     role: population
+    face: evolve
     meaning: fraction of the non-catalyst sites that start as substrate; the rest start as holes. Holes
       are also produced by the catalysis reaction
   - name: production_probability
@@ -133,6 +133,7 @@ chemistries:
     min: 0.0
     max: 1.0
     role: kinetic
+    face: evolve
     meaning: 'probability per time step that a catalyst turns two neighbouring substrates into a link
       and a hole (Von Kamp 2002, table 1: 1.0)'
   - name: disintegration_probability
@@ -141,6 +142,7 @@ chemistries:
     min: 0.0
     max: 1.0
     role: kinetic
+    face: evolve
     meaning: 'probability per time step that a link spontaneously disintegrates (Von Kamp 2002, table
       1: 0.01)'
   - name: bond_probability
@@ -149,6 +151,7 @@ chemistries:
     min: 0.0
     max: 1.0
     role: kinetic
+    face: evolve
     meaning: probability that an admissible bond between two neighbouring links is formed; not published,
       see decisions
   - name: absorption_probability
@@ -157,6 +160,7 @@ chemistries:
     min: 0.0
     max: 1.0
     role: kinetic
+    face: evolve
     meaning: 'probability per time step that a link tries to absorb a neighbouring substrate (Von Kamp
       2002, table 1: 0.5)'
   - name: emission_probability
@@ -165,12 +169,14 @@ chemistries:
     min: 0.0
     max: 1.0
     role: kinetic
+    face: evolve
     meaning: 'probability per time step that a link tries to emit its absorbed substrate into a neighbouring
       hole (Von Kamp 2002, table 1: 0.5)'
   - name: bond_inhibition
     type: bool
     default: true
     role: structural
+    face: evolve
     meaning: 'chain-based bond inhibition: a free link may not bond while chain links are in its neighbourhood.
       This is the rule omitted from the 1974 publication and restored by McMullin & Varela (1997); false
       reproduces the failure of the published algorithm'
@@ -181,6 +187,7 @@ chemistries:
     max: 8
     range: 'Von Kamp (2002) table 1: chainInhibitBondCount = 1, turned off at the neighbourhood size'
     role: structural
+    face: evolve
     meaning: how many chain links in the neighbourhood of a free link suppress bond formation
   - name: mobility
     type: dict
@@ -190,6 +197,7 @@ chemistries:
       link: 0.1
       hole: 0.5
     role: spatial
+    face: evolve
     meaning: mobility factor per particle type (Von Kamp 2002, table 1); two neighbours swap with probability
       sqrt(m_i m_j), and a link with one or two bonds is immobile whatever its factor
   provides:
@@ -260,12 +268,21 @@ chemistries:
     (2002, section 4.8) parameterises as catInhibitBondCount, bond decay (present in McMullin's SCL, absent
     in Varela et al. 1974) and all SCL-DIV mechanisms are not implemented; no probability is published
     for the first two.
-  - 'Network: status observed. Species carry the bond state (L0, L1, L2) and the absorbed substrate (L0S,
-    L1S, L2S), because both change what a link can do; holes are empty space and not a species, so production
-    reads C + 2 S -> C + L0 as in the book. Reactions carry no rate: the probabilities are per-particle
-    update probabilities of the lattice algorithm, not rate constants, and no rate law is published. Motion
-    is not a reaction. Mode ''reactions'' returns the same species with the reactions the chemistry defines,
-    status complete.'
+  - 'Two faces, replacing the former mode parameter. generate_network returns the reactions the chemistry
+    defines (book 6.1.5: production, bonding for every pair of bond states, disintegration and the absorption
+    and emission of substrate), status complete; it takes no parameters. chemart.evolve runs the lattice
+    (every parameter here belongs to it) and yields a frame per time step: the species counts on the lattice,
+    the reactions fired in the step, and three membrane measurements, closed_chains (closed chains of
+    links), membranes (those of six links or more) and enclosed_catalysts (catalysts inside one). Its
+    network holds the reactions that fired with their counts, the final grid in extras.space and whole-run
+    measurements in extras.analysis (event counts; closed chains, ruptures and repairs; crossings of the
+    membrane). The former per-step series of substrates, links, free links and chain links are read from
+    the frames'' species counts.'
+  - 'Observed network: status observed. Species carry the bond state (L0, L1, L2) and the absorbed substrate
+    (L0S, L1S, L2S), because both change what a link can do; holes are empty space and not a species,
+    so production reads C + 2 S -> C + L0 as in the book. Reactions carry no rate: the probabilities are
+    per-particle update probabilities of the lattice algorithm, not rate constants, and no rate law is
+    published. Motion is not a reaction.'
   - 'Dropped v1 parameters: grid (a matrix type) becomes width, height, substrate_density and initial;
     p_bond and p_decay become bond_probability and disintegration_probability, joined by the other published
     probabilities and the mobility factors. Defaults are small: a 30 x 30 world (Von Kamp''s figure 2)
