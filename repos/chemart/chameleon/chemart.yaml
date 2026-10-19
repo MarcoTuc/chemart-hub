@@ -23,6 +23,7 @@ chemistries:
   family: core
   kind: generator
   constructive: false
+  type: given
   S:
     repr: three colors r, g, b
     definition: explicit

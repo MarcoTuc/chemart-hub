@@ -23,6 +23,9 @@ chemistries:
   family: spatial
   kind: generator
   constructive: true
+  type: gas
+  clock: steps
+  duration: steps
   S:
     repr: molecules = covalently bonded clusters of square virtual atoms from {A, B, C, O} plus the four
       catalyst atoms {K, EAB, ECC, EO}, identified by the canonical (isomorphism-invariant) bond graph
@@ -76,7 +79,8 @@ chemistries:
     max: 100000
     range: long runs use thousands of steps
     role: population
-    meaning: simulation time steps; one step is one movement phase followed by one reaction phase
+    meaning: simulation time steps; one step is one movement phase followed by one reaction phase. 0 runs
+      the world until the caller stops reading its frames
   - name: atoms
     type: dict
     default:
@@ -215,6 +219,12 @@ chemistries:
     beyond that.
   - The network is the set of reactions that fired in one run (status observed, with counts). Catalysts
     appear on both sides whenever the catalysing atom belongs to a molecule that is not itself a reactant.
+  - chemart.evolve yields a frame per time step (one movement phase and one reaction phase); frame 0 is
+    the seeded grid. A frame's state counts the molecules present, its fired lists the bond events of
+    that step as reactions, and its observables are sugar_bonds (A-B), biomass_bonds (C-C), inorganic_bonds
+    (A-O plus B-O) and free_atoms (unbonded atoms). The number of molecules, formerly also recorded, is
+    the total of the state. generate_network runs the world to the end and returns the network; extras.analysis
+    keeps the whole-run event_counts and trophic summary.
   - 'Photosynthesis is three elementary bond events, not one: chlorophyll breaks A-O and breaks B-O, then
     makes A-B, so the freed A and B compete with the ''high'' probability of re-forming A-O and B-O. The
     sugar yield therefore turns on a ratio table 1 leaves unquantified. In the soup, where A and B are
