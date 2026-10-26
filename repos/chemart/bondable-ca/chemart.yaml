@@ -28,6 +28,7 @@ chemistries:
   family: automata
   kind: generator
   constructive: true
+  type: generator
   S:
     repr: 'An atom is a 1-d binary CA of width w with periodic (closed) boundaries; its type is the Wolfram
       rule number 0..255 that runs it. A molecule is a chain of bonded atoms, identified by its atom types,
@@ -167,7 +168,7 @@ chemistries:
     66 neutral rules) is reproduced by Chemart's CA step from its start state.
   - 'Faulconbridge, Stepney, Miller & Caves (2011). RBN-World: a sub-symbolic artificial chemistry (book
     ref [264]), the system in which the sub-symbolic idea was first discussed; implemented separately
-    as the rbn-world model of catalog id rbn.'
+    as catalog id rbn-world.'
   decisions:
   - 'Authorship corrected: the v1 entry said ''Gross, Banzhaf et al., 2011''. The book''s bibliography
     [373] is M. Hatcher, W. Banzhaf and T. Yu, ''Bondable cellular automata'', ECAL 2011, 326-333, and
@@ -248,9 +249,9 @@ chemistries:
   - once bonded, the coupled neighbourhoods change each atom's trajectory, so a bond can strengthen or
     weaken and molecules decay
   notes: 'Called a *sub-symbolic* AC: reactivity is not declared but read off an emergent property of
-    an internal dynamical system, an idea first discussed for RBNs in [264] (catalog id rbn, model rbn-world).
-    Figure 10.16 is the published result this entry reproduces: it is recoverable in full from the book''s
-    own page, and pinning the settling procedure against it is what fixes the parts of the model the text
+    an internal dynamical system, an idea first discussed for RBNs in [264] (catalog id rbn-world). Figure
+    10.16 is the published result this entry reproduces: it is recoverable in full from the book''s own
+    page, and pinning the settling procedure against it is what fixes the parts of the model the text
     leaves open.
 
     '

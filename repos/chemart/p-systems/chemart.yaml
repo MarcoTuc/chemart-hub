@@ -32,6 +32,7 @@ chemistries:
   family: rewriting
   kind: formalism
   constructive: false
+  type: given
   S:
     repr: 'symbol objects over an alphabet O, located in the regions of a tree of nested membranes [1
       [2 ]2 [3 ]3 ]1 (1 = skin); multisets written as strings (a^2 b^3 c). Species id = object@region
