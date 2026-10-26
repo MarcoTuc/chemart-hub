@@ -26,6 +26,9 @@ chemistries:
   family: systems-biology
   kind: generator
   constructive: true
+  type: gas
+  clock: events
+  duration: steps
   S:
     repr: 'a molecule (object, v-molecule) is a stack of lines of elements, each line with an integer
       displacement relative to the first line; string notation disp#elements/ per line, e.g. 0#GGATGTAC/0#CCTACATGCCGA/
@@ -66,7 +69,8 @@ chemistries:
     dilution: none; sources supply objects without limit and drains remove objects matched by a pattern
     notes: 'The published dynamics is nondeterministic: repeatedly apply one rule, operate one source
       or operate one drain, with no spatial structure and no rates (2007 section 2.2.5, 2009 section 2).
-      Chemart gives the closure of this process (all reachable reactions) or one sampled run.
+      Chemart gives the closure of this process (all reachable reactions, generate_network) and one sampled
+      run (chemart.evolve).
 
       '
   params:
@@ -86,15 +90,6 @@ chemistries:
       sec. 4, rules 25-28), adleman-hamiltonian-path (2007 sec. 6.1, Adleman''s 7-node graph), ab-concatenation
       (2007 sec. 2 / 2009 eqs. 1-3, the catalyst CD with source AB and drain), custom (rules, pool, sources,
       drains)'
-  - name: method
-    type: enum
-    default: closure
-    choices:
-    - closure
-    - soup
-    role: structural
-    meaning: 'closure: every reaction reachable from the initial pool and the sources; soup: one sampled
-      run of the nondeterministic process, observed reactions with firing counts'
   - name: words
     type: list
     default:
@@ -154,25 +149,29 @@ chemistries:
     range: 'benenson-automaton default closes at 47 species; adleman-hamiltonian-path first contains the
       answer molecule between 2000 and 5000 species (5000: about 35 s)'
     role: structural
-    meaning: 'closure only: species budget; closures of ab-concatenation and adleman-hamiltonian-path
-      are infinite and truncated'
+    face: generate
+    meaning: species budget of the closure; closures of ab-concatenation and adleman-hamiltonian-path
+      are infinite and truncated
   - name: steps
     type: int
     default: 2000
     min: 0
     max: 10000000
     role: population
-    meaning: 'soup only: number of events (rule applications, source and drain operations), failed draws
-      included'
+    face: evolve
+    meaning: number of events (rule applications, source and drain operations), failed draws included;
+      a frame every generation (as many events as the initial pool has objects). 0 runs the process on
+      until the caller stops reading its frames
   - name: copies
     type: int
     default: 1
     min: 1
     max: 100000
     role: population
-    meaning: 'soup only: multiplies every initial count (benenson-automaton starts from the published
+    face: evolve
+    meaning: multiplies every initial count of the sampled run (benenson-automaton starts from the published
       100 Fok I, 20 per transition molecule and detector, 10 per input; the other systems from one copy
-      of each molecule)'
+      of each molecule)
   provides:
   - topology
   - stoichiometry
@@ -236,8 +235,13 @@ chemistries:
     infinite (walks repeat nodes): 2000 species (19803 reactions, 5 s) do not yet contain the answer molecule,
     5000 species (64662 reactions, 34 s) do. The paper ran Adleman''s model as a soup of 100,000 objects
     per kind, which is out of scale here; the answer is checked by applying the rules along the path.'
-  - 'Soup: the papers'' simulators (random collision, collision theory) are not specified. Chemart samples
-    events with weight = number of ordered reactant choices for a rule, 1 per source and the matching
+  - 'Two faces: generate_network returns the reaction closure of the initial pool and the sources; chemart.evolve
+    samples one run of the nondeterministic process (formerly method soup) with a frame per generation,
+    i.e. every n events where n is the number of objects in the initial pool after copies (220 for the
+    Benenson pool), plus a last frame when the run ends or no event is possible. The frames carry the
+    pool and the reactions fired, with sources as ∅ -> s and drains as s -> ∅.'
+  - 'Sampled run: the papers'' simulators (random collision, collision theory) are not specified. Chemart
+    samples events with weight = number of ordered reactant choices for a rule, 1 per source and the matching
     copies for a drain; a draw needing more copies than exist is a failed step. It is a Chemart addition
     for a single run and has no rates.'
   - 'No kinetics: both papers model only the qualitative aspects (2007 sec. 7), so reactions carry no
@@ -248,7 +252,7 @@ chemistries:
     rule label of each reaction, ''source'' or ''drain''), analysis (benenson: reporters per word and
     accepted words; transcription: the expected mRNA and whether it is produced; fatty acid: the acyl
     CoA chain lengths reached and acetyl CoA; adleman: whether the answer molecule of the paper''s figure
-    is produced) and, for soup, final_state.'
+    is produced) and, for the evolved network, final_state.'
   phenomena:
   - 'Benenson automaton (2007 sec. 6.2): Fok I cuts 9/13 bases after GGATG, the sticky end selects one
     transition molecule, and after the terminator the S0 detector forms the reporter; the input abb (even
@@ -262,7 +266,7 @@ chemistries:
     closure is infinite because walks repeat nodes'
   - computationally universal with unary and binary rules only (2007 secs. 3-5)
   notes: 'The generator module also exports parse_molecule, parse_pattern, match, Rule (with apply), closure,
-    run and the published molecules and rule sets for direct use. The 2009 reasoning procedure (backward
-    search) is not implemented.
+    run (and events, the same run frame by frame) and the published molecules and rule sets for direct
+    use. The 2009 reasoning procedure (backward search) is not implemented.
 
     '

@@ -33,6 +33,9 @@ chemistries:
   family: systems-biology
   kind: generator
   constructive: true
+  type: gas
+  clock: collisions
+  duration: steps
   S:
     repr: RNA sequences over AUGC, each folded by free-energy minimisation (Vienna RNA) into a secondary
       structure in dot-bracket notation; Species.structure holds 'sequence dot-bracket'
@@ -54,8 +57,8 @@ chemistries:
     reactor:
     - well-stirred-multiset
     - graph-rewrite
-    dilution: closure mode is cut off by max_species; the well-stirred run optionally dilutes back to
-      the initial population size
+    dilution: the closure (generate_network) is cut off by max_species; the well-stirred run (chemart.evolve)
+      optionally dilutes back to the initial population size
   params:
   - name: seq_length
     type: int
@@ -71,31 +74,25 @@ chemistries:
     min: 1
     max: 200
     role: population
-    meaning: number of random RNA sequences the run starts from
-    range: well-stirred mode needs at least 3; paper-scale runs hold tens of ribozymes per cell
-  - name: mode
-    type: enum
-    default: closure
-    choices:
-    - closure
-    - well-stirred
-    role: structural
-    meaning: 'closure: every reaction reachable from the pool; well-stirred: the reactions that fired
-      in a multiset run, with counts'
+    meaning: number of random RNA sequences the closure or the run starts from
+    range: chemart.evolve needs at least 3; paper-scale runs hold tens of ribozymes per cell
   - name: max_species
     type: int
     default: 60
     min: 2
     max: 5000
     role: structural
+    face: generate
     meaning: species budget for the closure; the network is reported as truncated when it is reached
   - name: steps
     type: int
     default: 500
-    min: 1
+    min: 0
     max: 200000
     role: population
-    meaning: number of collisions in the well-stirred run
+    face: evolve
+    meaning: number of collisions in the well-stirred run; a frame every (initial pool size) collisions.
+      0 runs the collisions on until the caller stops reading the frames
   - name: dilution
     type: enum
     default: none
@@ -103,6 +100,7 @@ chemistries:
     - none
     - constant
     role: population
+    face: evolve
     meaning: whether the well-stirred population is diluted back to its initial size after every reaction
   - name: its_min
     type: int
@@ -181,7 +179,12 @@ chemistries:
     min_recognition bases of the loop sequence, cleavage cuts immediately 3'' of that site, and ligation
     joins two molecules whose junction spells it. No rate constants are published that this implementation
     could reproduce, so every reaction carries rate None.'
-  - Defaults are small (30 nt, 4 seed sequences, 60 species) so that the closure folds in well under a
+  - 'Two faces: generate_network returns the closure of the initial pool (one substrate per cleavage,
+    two per ligation), cut off by max_species; chemart.evolve runs the well-stirred multiset (chemart.soup.stir,
+    three molecules per collision, the first as catalyst), a frame every (initial pool size) collisions,
+    and returns the reactions that fired with counts. They replace the former mode parameter (closure
+    | well-stirred).'
+  - Defaults are small (30 nt, 8 seed sequences, 60 species) so that the closure folds in well under a
     second; the paper's scale (100 nt genes, 5000 nt genomes, 100-1000 generations) is recorded in the
     params' range fields.
   - Book table 18.1 gives two 60 nt sequences with their RNAfold structures. ViennaRNA 2.7.2 reproduces
