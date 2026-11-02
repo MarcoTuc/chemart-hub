@@ -31,6 +31,7 @@ chemistries:
   family: rewriting
   kind: formalism
   constructive: true
+  type: generator
   S:
     repr: 'elements of a multiset: integers, or tuples of elements such as (index, value) pairs or (position,
       value, sum) triples. Species id n<k> for the integer k and the canonical text (1,5) for a tuple;

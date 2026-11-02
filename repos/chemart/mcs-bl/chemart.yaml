@@ -32,6 +32,9 @@ chemistries:
   family: bio-inspired
   kind: generator
   constructive: true
+  type: gas
+  clock: collisions
+  duration: steps
   S:
     repr: 'Broadcast devices: strings over {0, 1, *, :, #, $, %, ''} (thesis glyphs diamond, reversed
       triangle, triangle, prime for # $ % ''). Species id m_<one letter per symbol: 0 1, * S, : C, # H,
@@ -71,16 +74,6 @@ chemistries:
 
       '
   params:
-  - name: method
-    type: enum
-    default: closure
-    choices:
-    - closure
-    - soup
-    role: structural
-    meaning: 'closure: every reaction among the strings reachable from the seeds (status complete or truncated);
-      soup: the thesis'' single-reactor model (4.2.1) for `steps` collisions with mutation, returning
-      the reactions that fired with counts (status observed)'
   - name: strings
     type: list
     default:
@@ -117,7 +110,8 @@ chemistries:
     min: 1
     max: 100000
     role: structural
-    meaning: 'closure only: species budget; elongating chemistries are cut off by it (status truncated)'
+    face: generate
+    meaning: species budget of the closure; elongating chemistries are cut off by it (status truncated)
   - name: initial_copies
     type: int
     default: 10
@@ -125,7 +119,7 @@ chemistries:
     max: 1000000
     range: 'thesis 7.2: 10 of each seed species; 5.3: 100 copies of the replicase'
     role: population
-    meaning: copies of each seed string (initial_state; initial soup)
+    meaning: copies of each seed string (initial_state; the initial reactor)
   - name: n_random
     type: int
     default: 0
@@ -149,8 +143,9 @@ chemistries:
     max: 100000000
     range: 'thesis 5.2-5.3: 1000; cells in 7.2: 10^6'
     role: population
-    meaning: 'soup only: reactor capacity; below it products are added, at it each product displaces a
-      random molecule other than the reactants'
+    face: evolve
+    meaning: reactor capacity; below it products are added, at it each product displaces a random molecule
+      other than the reactants
   - name: steps
     type: int
     default: 10000
@@ -158,7 +153,9 @@ chemistries:
     max: 1000000000
     range: 'thesis 5.2: 5x10^6 collisions per run; 7.2: over 4x10^7 per cell per hour'
     role: population
-    meaning: 'soup only: number of collisions (elastic ones included)'
+    face: evolve
+    meaning: number of collisions (elastic ones included); a frame every strings x initial_copies collisions.
+      0 runs the reactor until the caller stops reading the frames
   - name: p_s
     type: float
     default: 1.0e-05
@@ -166,8 +163,9 @@ chemistries:
     max: 1.0
     range: 'book fig. 11.3 / ACS 2011: 1e-5; thesis 5.2: 1e-3; D.1: 5e-5'
     role: stochastic
-    meaning: 'soup only: per-symbol mutation probability of each product; a mutation is a flip to another
-      symbol, an insertion of a random symbol after it, or a deletion, with equal probability'
+    face: evolve
+    meaning: per-symbol mutation probability of each product; a mutation is a flip to another symbol,
+      an insertion of a random symbol after it, or a deletion, with equal probability
   provides:
   - topology
   - stoichiometry
@@ -196,6 +194,13 @@ chemistries:
   - 'Decraene, J. (2006). The Holland Broadcast Language. Technical report ALL-06-01, DCU: specification
     and C++ source (BUnit.cpp: setRegexForm, setCompactForm, getSymbolValueFromSignal, reactWith). http://doras.dcu.ie/4590/1/decraene-ALL-06-01.pdf'
   decisions:
+  - 'Two faces: generate_network returns the closure, every reaction among the strings reachable from
+    the seeds (status complete or truncated, cut off by max_species); chemart.evolve runs the thesis''
+    single reactor (4.2.1) for steps collisions with mutation, a frame every generation of the initial
+    reactor (strings x initial_copies collisions), and returns the reactions that fired with counts (status
+    observed). The reactor is its own loop, not chemart.soup.stir: it grows to n_max and then overwrites
+    a random non-reactant in place, and mutates the product before it enters, which stir''s replace-and-dilute
+    step cannot express; the bookkeeping uses chemart.soup.Tally.'
   - 'Symbols: the book''s extracted text prints the alphabet as {3, $, %, } and table 11.2 uses 3; comparing
     with thesis table 7.2 (glyphs), book 3/# is the diamond (single wildcard, any suffix when last), $
     the reversed triangle (prefix/suffix wildcard that transposes), % the triangle (single wildcard that
@@ -224,10 +229,10 @@ chemistries:
   - 'Rates: thesis eq. 5.1-5.2 (catalytic network equation, alpha = 1 per ordered enzyme-substrate pair
     that yields the product) with dilution flow = outflow constant-total. Each multiset reaction {a, b}
     -> {a, b, p} gets mass-action k = sum over the orders (a, b), (b, a) of the fraction of satisfied
-    units giving p (1 or 2 for single-unit enzymes; one order when a = b). Soup reactions made by a mutation
-    have no structural k and get rate None.'
-  - 'Soup: two distinct molecules drawn at random, the first the enzyme (thesis 4.2.1, 5.3); below n_max
-    the product is added, at n_max it replaces a random molecule other than the two reactants (thesis;
+    units giving p (1 or 2 for single-unit enzymes; one order when a = b). Evolved reactions made by a
+    mutation have no structural k and get rate None.'
+  - 'Reactor: two distinct molecules drawn at random, the first the enzyme (thesis 4.2.1, 5.3); below
+    n_max the product is added, at n_max it replaces a random molecule other than the two reactants (thesis;
     ALife 2008 does not exclude them). Mutation (thesis 4.2.2) is applied to the product once per symbol
     with probability p_s, sampled as a binomial number of distinct positions; self-replication is filtered
     before mutation and length after. The thesis'' spontaneous mutation (a fraction r_mut of the population
@@ -267,7 +272,8 @@ chemistries:
   - selection pressure can be aimed at a chosen molecular species by changing the division criterion
   - hand-designed collectively autocatalytic sets *$0:$1 + *$1:$0 close into c0 (thesis appendix D.2)
   notes: 'A reflexive string-rewriting chemistry: every molecule can be both enzyme and substrate. Chemart
-    provides the molecular level (closure or single reactor); the cell level of the book''s figures (31
-    concurrent cells racing in wall-clock time) is not a reaction network.
+    provides the molecular level (the closure, generate_network, or the single reactor, chemart.evolve);
+    the cell level of the book''s figures (31 concurrent cells racing in wall-clock time) is not a reaction
+    network.
 
     '
