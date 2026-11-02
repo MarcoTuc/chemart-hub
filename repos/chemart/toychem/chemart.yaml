@@ -33,6 +33,7 @@ chemistries:
   family: network
   kind: generator
   constructive: true
+  type: generator
   S:
     repr: 'a molecule is its structural formula: a vertex- and edge-labelled graph of atoms and bonds.
       The VSEPR rules turn that graph unambiguously into the orbital graph of Polansky, whose vertices

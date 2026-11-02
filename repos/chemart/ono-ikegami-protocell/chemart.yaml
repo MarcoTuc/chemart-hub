@@ -25,6 +25,9 @@ chemistries:
   family: origin-of-life
   kind: generator
   constructive: false
+  type: given
+  clock: sweeps
+  duration: steps
   S:
     repr: five species A (autocatalyst, hydrophilic), M (membrane, hydrophobic, isotropic M_i or anisotropic
       M_a carrying one of the six lattice orientations), X (food, neutral), Y (waste, neutral), W (water,
@@ -46,16 +49,6 @@ chemistries:
     notes: Kawasaki exchange with a neighbour plus rotation of M_a, both accepted with the Metropolis
       rule min(1, exp(-dE/T)); the reactions are then applied cell by cell
   params:
-  - name: mode
-    type: enum
-    default: spatial
-    choices:
-    - spatial
-    - reactions
-    role: structural
-    meaning: '''reactions'' returns the four-reaction network on its own; ''spatial'' runs the lattice
-      and returns the reactions that fired with their counts, plus the lattice, the energies and the protocell
-      measurements'
   - name: membrane
     type: enum
     default: anisotropic
@@ -71,6 +64,7 @@ chemistries:
     min: 6
     max: 200
     role: spatial
+    face: evolve
     meaning: lattice width in cells (axial r); the papers use a few hundred
   - name: height
     type: int
@@ -78,21 +72,25 @@ chemistries:
     min: 6
     max: 200
     role: spatial
+    face: evolve
     meaning: lattice height in cells (axial q)
   - name: steps
     type: int
     default: 100
-    min: 1
+    min: 0
     max: 20000
     role: population
-    meaning: lattice sweeps; each sweep does six Metropolis exchange passes, one rotation pass and one
-      chemistry pass
+    face: evolve
+    meaning: lattice sweeps, a frame each; a sweep does `relaxation` Metropolis exchange passes, one rotation
+      pass (M_a only) and one chemistry pass. 0 sweeps the lattice until the caller stops reading the
+      frames
   - name: relaxation
     type: int
     default: 12
     min: 1
     max: 200
     role: spatial
+    face: evolve
     meaning: Metropolis exchange passes per chemistry pass; this is where the paper's separation between
       the mobility rates (7e-3) and the reaction rates (1e-4) enters, so particles demix long before they
       react
@@ -103,6 +101,7 @@ chemistries:
     - random
     - cell
     role: population
+    face: evolve
     meaning: '''random'' is a well-mixed start (the papers'' homogeneous experiment); ''cell'' prepares
       a membrane ring around autocatalyst and food (their cell-like experiment)'
   - name: cell_radius
@@ -111,6 +110,7 @@ chemistries:
     min: 1
     max: 60
     role: spatial
+    face: evolve
     meaning: radius in cells of the prepared membrane ring when initial = cell
   - name: A_fraction
     type: float
@@ -118,6 +118,7 @@ chemistries:
     min: 0
     max: 1
     role: population
+    face: evolve
     meaning: fraction of cells seeded with autocatalyst A when initial = random
   - name: X_fraction
     type: float
@@ -125,6 +126,7 @@ chemistries:
     min: 0
     max: 1
     role: population
+    face: evolve
     meaning: fraction of cells seeded with food X; the rest of the lattice is water W
   - name: M_fraction
     type: float
@@ -132,6 +134,7 @@ chemistries:
     min: 0
     max: 1
     role: population
+    face: evolve
     meaning: fraction of cells seeded with membrane M when initial = random; non-zero starts from dispersed
       membrane particles, so their self-assembly can be watched on its own
   - name: P_A
@@ -140,6 +143,7 @@ chemistries:
     min: 0
     max: 1
     role: kinetic
+    face: evolve
     meaning: probability per sweep and per neighbouring A that a food particle replicates it (A + X ->
       2 A); the paper's reproduction rate of A
   - name: P_M
@@ -148,6 +152,7 @@ chemistries:
     min: 0
     max: 1
     role: kinetic
+    face: evolve
     meaning: probability per sweep and per neighbouring A that a food particle becomes membrane (A + X
       -> A + M); the paper's production rate of M
   - name: P_decay
@@ -156,6 +161,7 @@ chemistries:
     min: 0
     max: 1
     role: kinetic
+    face: evolve
     meaning: probability per sweep that an A, M or X particle decays to waste Y; water never decays
   - name: X_supply
     type: float
@@ -163,6 +169,7 @@ chemistries:
     min: 0
     max: 1
     role: kinetic
+    face: evolve
     meaning: probability per sweep that waste is recycled to food (Y -> X) by the external energy source;
       the decisive resource-supply parameter, low values being the regime where anisotropy pays off
   - name: anisotropy
@@ -171,6 +178,7 @@ chemistries:
     min: 0
     max: 3
     role: spatial
+    face: evolve
     meaning: 'strength a of the directional part of the M_a repulsion field, F[k, o] = 1 + a cos(2 * 60deg
       * (k - o)): repulsion is strongest along the +-o axis and weakest on the four flanks, where it turns
       attractive once a > 2, so a membrane particle wants membrane neighbours along its axis and water
@@ -180,6 +188,7 @@ chemistries:
     default: 1.0
     min: 0
     role: thermodynamic
+    face: evolve
     meaning: energy of one hydrophilic/hydrophobic neighbour pair, in units of the temperature
   - name: neutral_coupling
     type: float
@@ -187,6 +196,7 @@ chemistries:
     min: 0
     max: 1
     role: thermodynamic
+    face: evolve
     meaning: energy of a neutral/hydrophobic pair as a fraction of `repulsion`; this weak coupling is
       what lets X and Y cross a membrane that holds A back
   - name: temperature
@@ -194,12 +204,14 @@ chemistries:
     default: 1.0
     min: 0.01
     role: thermodynamic
+    face: evolve
     meaning: Metropolis temperature T in min(1, exp(-dE/T))
   - name: mobility_ratio
     type: float
     default: 1.0
     min: 1
     role: spatial
+    face: evolve
     meaning: 'the paper''s m: exchanges involving A are attempted with probability 1/m, making the autocatalyst
       less mobile than membrane and food; the 1D paper needs m = 5 for a cell to divide'
   provides:
@@ -220,6 +232,13 @@ chemistries:
     6.14 - the five-species hexagonal model, the isotropic/anisotropic repulsion fields, and the low-supply
     result.
   decisions:
+  - 'Two faces, replacing the former mode parameter. generate_network returns the book''s reaction set
+    (six reactions over A, M, X, Y, W), status complete; its only parameter is membrane, which names the
+    membrane species M_a or M_i. chemart.evolve runs the lattice (every other parameter belongs to it)
+    and yields a frame per sweep: the count of each species and the reactions fired in that sweep. Its
+    network holds the reactions that fired with their counts, the final lattice in extras.space, the energies
+    in extras.energies and measurements of the final lattice in extras.analysis. The former extras.analysis.history
+    (species counts after every sweep) is the frames'' state.'
   - The book describes the two-dimensional hexagonal model of [639]/[641]; those papers, the BioSystems
     study [637] and the 3D extension [538] are all paywalled and were not obtainable (no open copy per
     OpenAlex/Unpaywall/Semantic Scholar, and the Internet Archive was offline during this work). The accessible
