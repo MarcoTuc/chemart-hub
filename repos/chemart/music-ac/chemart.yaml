@@ -27,6 +27,9 @@ chemistries:
   family: application
   kind: generator
   constructive: true
+  type: gas
+  clock: collisions
+  duration: steps
   S:
     repr: 'objects (molecules) are stacks of lines of elements written disp#elements/ per line, the displacement
       counting columns relative to the first line: 0#C4D4E4/ is a melody fragment, 0#C4D4E4F4G4A4B4C5/0#TCCCCCCC/
@@ -132,7 +135,8 @@ chemistries:
     max: 10000000
     role: population
     meaning: maximum number of collisions of the recorded run; failed draws (too few copies, or products
-      equal to reactants) are included
+      equal to reactants) are included. 0 collides until a stopping rule fires or the caller stops reading
+      the frames
   - name: phrases
     type: int
     default: 1
@@ -218,6 +222,12 @@ chemistries:
     have no terminating condition. Chemart stops after `phrases` finished phrases (default 1, reached
     in about 0.2 s), or after `steps` collisions; phrases=0 runs the whole budget. The published wall-clock
     times are not reproduced.'
+  - chemart.evolve yields a frame per collision, failed draws included since they count toward steps;
+    frame 0 is the initial pot. A frame's state is the pot, its fired the reaction of that collision (empty
+    for a failed draw), and its one observable, phrases, the number of distinct finished phrases in the
+    pot, the quantity the run stops on. The paper reports no time series, so the frames are the record
+    of one Chemart run, not a published dynamics; chemart.evolve(..., every=k) keeps one frame in k. generate_network
+    runs to the end and returns the network.
   - Initial counts are the published ones, which the paper calls 'somewhat arbitrary', chosen so that
     a few phrases appear in reasonable time; copies scales them uniformly.
   - 'v1 parameters: mode is kept with its single published choice, the callable harmony_filter becomes

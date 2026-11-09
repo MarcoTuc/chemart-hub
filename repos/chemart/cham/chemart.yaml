@@ -25,6 +25,7 @@ chemistries:
   family: rewriting
   kind: formalism
   constructive: true
+  type: generator
   S:
     repr: 'molecules are terms of an algebra; for the process-calculus chams of Berry & Boudol: 0, process
       constants P, prefixes (ions) a.m / ~a.m / tau.m, parallel p|q, restriction m\a, relabelling m[b/a],

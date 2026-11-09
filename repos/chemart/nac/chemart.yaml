@@ -29,6 +29,9 @@ chemistries:
   family: network
   kind: generator
   constructive: true
+  type: gas
+  clock: steps
+  duration: steps
   S:
     repr: 'a graph stands in for the solvent: every node is a molecule, classified as hydrophilic (i)
       or hydrophobic (o), and every edge is a weak bond (the hydrophilic or hydrophobic interaction that
@@ -63,22 +66,12 @@ chemistries:
   A:
     reactor: graph-rewrite
     dilution: none
-    notes: 'One graph of n_nodes nodes is rewired step by step; the reactions that fired are returned
-      with their counts (status observed) and the graph itself is kept in extras.space. Method closure
-      instead enumerates every cluster reachable from the initial ones by single rewirings.
+    notes: 'One graph of n_nodes nodes is rewired step by step (chemart.evolve); the reactions that fired
+      are returned with their counts (status observed) and the graph itself is kept in extras.space. generate_network
+      instead enumerates every cluster reachable from the initial ones by single rewirings (the closure).
 
       '
   params:
-  - name: method
-    type: enum
-    default: rewiring
-    choices:
-    - rewiring
-    - closure
-    role: structural
-    meaning: 'rewiring: run the local rewiring rule on one graph and return the reactions that fired with
-      their counts; closure: every cluster reachable from the initial ones by single rewirings (chemart.expand,
-      one alternative per rewiring)'
   - name: n_nodes
     type: int
     default: 12
@@ -126,7 +119,9 @@ chemistries:
     range: the small-world measurement needs a few thousand rewirings at N = 200; the default graph has
       demixed after about 600 attempts
     role: population
-    meaning: 'rewiring only: number of attempted rewiring steps, cancelled ones included'
+    face: evolve
+    meaning: number of attempted rewiring steps, cancelled ones included; a frame every n_nodes steps.
+      0 rewires until the caller stops reading the frames
   - name: polarity_constraint
     type: bool
     default: true
@@ -136,12 +131,14 @@ chemistries:
       rule and does not demix'
   - name: max_species
     type: int
-    default: 300
+    default: 100
     min: 1
-    range: 8 nodes and 6 edges close at 16 clusters; 8 nodes and 8 edges pass 300 in a fraction of a second
+    range: 8 nodes and 6 edges close at 16 clusters; 8 nodes and 8 edges pass 300 in a fraction of a second;
+      the default graph (12 nodes, 18 edges) reaches 300 in about 2 s
     role: structural
-    meaning: 'closure only: species budget; reactions whose new clusters would exceed it are dropped and
-      the status becomes truncated'
+    face: generate
+    meaning: species budget of the closure; reactions whose new clusters would exceed it are dropped and
+      the status becomes truncated
   provides:
   - topology
   - stoichiometry
@@ -184,6 +181,15 @@ chemistries:
     a ''network energy'' expressing that constraint is formulated, the graph is rewired to minimise it
     and the result is compared with a hard-sphere random walk. https://doi.org/10.1071/CH06182'
   decisions:
+  - 'Two faces: generate_network returns the closure, every cluster reachable from the initial ones by
+    single rewirings (chemart.expand, one alternative per rewiring), cut off by max_species; chemart.evolve
+    runs the rewiring rule on one graph for steps attempts, a frame every n_nodes attempts (and one at
+    the end), each reporting the clusters present and the demixing and small-world measures (mixed_edges,
+    largest_hydrophilic_cluster, clustering, path_length). They replace the former method parameter (closure
+    | rewiring).'
+  - 'max_species defaults to 100 (it was 300): the closure of the default graph (12 nodes, 18 edges) is
+    far larger than any budget, and 300 clusters took about 2 s, too close to the few seconds a default
+    run may take; 100 take under a second. Pass max_species=300 for the former default.'
   - 'None of the three references of the book section could be obtained: [824] and [825] (Biosystems,
     Elsevier) and [827] (ECAL 2005 workshop CD-ROM, never published online; its journal version is the
     paywalled Australian Journal of Chemistry paper above) are all closed access, no open version exists
@@ -210,8 +216,8 @@ chemistries:
   - The rewiring rule is taken verbatim from slides 9-13 (A at random; B at random among A's neighbours;
     C at random among the nodes at distance two from A; A-B deleted, A-C created). The distance-two set
     is computed before the deletion, as in the slides' order. The step is inert when A has no neighbour
-    or nothing at distance two; extras.analysis.attempts counts moved, cancelled-polarity, no-neighbour
-    and no-distance-two.
+    or nothing at distance two; extras.analysis.attempts of an evolved network counts moved, cancelled-polarity,
+    no-neighbour and no-distance-two.
   - 'Small-world check of slide 14: read literally (C drawn among all the nodes at distance two from A),
     the rule takes a random network of N = 200, K = 10 from C = 0.053, L = 2.55 to C = 0.151, L = 2.59
     in about 2000 rewirings - the rise of the slide with the path length unchanged - after which C drifts
@@ -235,15 +241,15 @@ chemistries:
     The published run of slide 14 is N = 200, K = 10; the defaults are much smaller so that cluster ids
     stay readable and the run is fast.'
   - 'No kinetics: no source gives a rate or a time scale for a rewiring, so no reaction carries a rate.
-    Counts in the rewiring method are firing counts of the recorded events.'
+    Counts in an evolved network are firing counts of the recorded events.'
   - 'Conservation: a rewiring moves one edge inside one cluster, so hydrophilic nodes, hydrophobic nodes
     and weak edges are conserved by every reaction; the three vectors are in extras.conservation. Clusters
     never merge, so the closure terminates.'
   - 'The v1 parameter initial_edges (matrix) became edges (a list of [u, v] pairs) plus mean_degree; programs
-    (callable) is dropped with the active layer; method, steps, polarity_constraint and max_species are
-    added. polarity_constraint false is a Chemart option, not a published variant: it gives the plain
-    acquaintance-network rewiring of Davidsen et al. and is what shows that the demixing comes from the
-    constraint.'
+    (callable) is dropped with the active layer; steps, polarity_constraint and max_species are added
+    (and method, since replaced by the two faces). polarity_constraint false is a Chemart option, not
+    a published variant: it gives the plain acquaintance-network rewiring of Davidsen et al. and is what
+    shows that the demixing comes from the constraint.'
   - The 'network energy' of the Australian Journal of Chemistry paper, which NAC minimises to make the
     graph imitate three-dimensional space, is only described in its abstract; no formula could be obtained,
     so none is implemented and no energy is reported.

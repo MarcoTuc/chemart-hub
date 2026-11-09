@@ -24,6 +24,9 @@ chemistries:
   family: core
   kind: framework
   constructive: true
+  type: gas
+  clock: iterations
+  duration: iterations
   S:
     repr: 'two multisets: data molecules (JSON integers or lists; species n<k> or compact JSON text such
       as [0,3,1,2]) and rule molecules (species rule:<name>, structure the rule text, e.g. divrule(m1,
@@ -45,16 +48,6 @@ chemistries:
       nsites data molecules are present draw nsites of them without replacement, execute the rule, inject
       its products, reinject the rule (book figure 3)'
   params:
-  - name: method
-    type: enum
-    default: soup
-    choices:
-    - soup
-    - closure
-    role: structural
-    meaning: 'soup: the book''s HighOrderChem.iterate loop, observed effective reactions with counts;
-      closure: every reaction reachable from the distinct data molecules under deterministic rules (Chemart
-      addition)'
   - name: rules
     type: dict
     default:
@@ -89,7 +82,8 @@ chemistries:
     max: 100000
     range: NumberChemHO.py popsize 100; MolecularTSP.py popsize 9
     role: population
-    meaning: number of data molecules drawn when data is empty
+    meaning: 'number of data molecules drawn when data is empty: the reactor''s initial data multiset,
+      whose distinct molecules seed the closure'
   - name: minn
     type: int
     default: 2
@@ -119,14 +113,17 @@ chemistries:
     range: 'NumberChemHO.run: 10000; MolecularTSP.py: up to 1000 generations of ceil(M * 100 / |rules|)
       iterations'
     role: population
-    meaning: 'soup only: number of iterations of the algorithm (one rule drawn per iteration, elastic
-      and idle ones included)'
+    face: evolve
+    meaning: number of iterations of the algorithm (one rule drawn per iteration, elastic and idle ones
+      included); a frame every generation of as many iterations as initial data molecules. 0 runs the
+      loop until the caller stops reading its frames
   - name: max_species
     type: int
     default: 1000
     min: 1
     role: structural
-    meaning: 'closure only: budget of data species; status truncated when exceeded'
+    face: generate
+    meaning: budget of data species of the closure; status truncated when exceeded
   provides:
   - topology
   - stoichiometry
@@ -140,6 +137,11 @@ chemistries:
   - PyCellChemistry src/HighOrderChem.py, src/NumberChemHO.py, src/MolecularTSP.py and src/artchem/Multiset.py
     (Yamamoto, 2014). https://github.com/laryamamoto/PyCellChemistry
   decisions:
+  - 'Two faces: chemart.evolve runs the book''s HighOrderChem.iterate loop for `iterations` iterations,
+    a frame every generation of M iterations (len(data) when data is given) and at the end, and returns
+    the observed effective reactions with counts; generate_network returns every reaction reachable from
+    the distinct data molecules under deterministic rules (a Chemart addition). A frame''s state includes
+    the rule molecules.'
   - 'Security: the reference executes rule strings with exec. Chemart never executes a string: a rule
     is looked up by name in a registry of built-in functions ported from the reference examples (divrule
     from NumberChemHO.py and the book; exchangeMachine, cutMachine, invertMachine, recombinationMachine
@@ -166,8 +168,8 @@ chemistries:
     does not change the dynamics.'
   - 'The observed network keeps the effective reactions (HighOrderChem.is_effective: product multiset
     differs from educt multiset) with firing counts; initial_state and extras.final_state include the
-    rule molecules; extras.analysis records rule_draws per rule, and prime_fraction per generation of
-    M iterations when the only rule is divrule on integers (NumberChemHO.nprimes).'
+    rule molecules; extras.analysis records rule_draws per rule; when the only rule is divrule on integers
+    every frame reports prime_fraction (NumberChemHO.nprimes) as an observable.'
   - 'Tour machines use MolecularTSP.py''s ring topology (TSPgraph ring=True: gridsize 2N, radius N, fully
     meshed roads) and its fitness with penalties; a tour molecule is the list of cities rather than the
     string ''fitness [tour]'', since the fitness is a function of the tour. The reference''s %g rounding
@@ -175,9 +177,8 @@ chemistries:
     the new tour''s exactly). The random topology is not offered: the dedicated molecular-tsp chemistry
     covers the full model. List molecules must be permutations of 0..cities-1 when a machine is in the
     rule set.'
-  - method closure is a Chemart addition (chemart.expand.expand, ordered reactants, each rule producing
-    its own reaction); it is only defined for deterministic rules, so the stochastic tour machines are
-    rejected.
+  - The closure is a Chemart addition (chemart.expand.expand, ordered reactants, each rule producing its
+    own reaction); it is only defined for deterministic rules, so the stochastic tour machines are rejected.
   - 'The book''s caveat is kept: this is not yet truly high-order, since rules never take rules as educts
     and cannot rewrite rules (no typed binding sites).'
   - v1 parameters rules (callable) and seed (matrix) are replaced by the JSON rule multiset `rules` and

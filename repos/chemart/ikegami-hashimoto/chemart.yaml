@@ -25,6 +25,9 @@ chemistries:
   family: automata
   kind: generator
   constructive: true
+  type: gas
+  clock: generations
+  duration: generations
   S:
     repr: 'Two separate populations. Tapes: circular 7-bit strings, species T<2 hex digits> = the bits
       read clockwise from the tape''s source (the papers name a tape by its smallest rotation, extras.paper_names).
@@ -59,15 +62,6 @@ chemistries:
 
       '
   params:
-  - name: method
-    type: enum
-    default: dynamics
-    choices:
-    - dynamics
-    - closure
-    role: structural
-    meaning: 'dynamics: the papers'' population dynamics, observed reactions with firing counts; closure:
-      the noise-free reaction network reachable from the seed machines and tapes (Chemart addition)'
   - name: machines
     type: list
     default: []
@@ -104,7 +98,8 @@ chemistries:
     max: 10000000
     range: not stated in the papers
     role: population
-    meaning: 'dynamics only: capacity of each population (machines, tapes); seeds share it equally'
+    face: evolve
+    meaning: capacity of each population (machines, tapes); seeds share it equally
   - name: c
     type: float
     default: 0.6
@@ -121,7 +116,8 @@ chemistries:
     max: 1.0
     range: 'papers: 0.04 (minimal loop), 0.055 (oscillation), 0.07-0.08 (core networks), scans 0-0.1'
     role: stochastic
-    meaning: 'dynamics only: external noise mu_P, bit-flip probability per bit of the reading frame'
+    face: evolve
+    meaning: external noise mu_P, bit-flip probability per bit of the reading frame
   - name: generations
     type: int
     default: 150
@@ -129,7 +125,9 @@ chemistries:
     max: 100000
     range: 'papers: 1600-3000'
     role: population
-    meaning: 'dynamics only: number of generations'
+    face: evolve
+    meaning: number of generations; a frame every generation. 0 runs the dynamics until the caller stops
+      reading its frames
   - name: noise_off
     type: int
     default: -1
@@ -137,7 +135,8 @@ chemistries:
     max: 100000
     range: 'papers: 2000'
     role: stochastic
-    meaning: 'dynamics only: generation at which external noise is turned off; -1 keeps it on'
+    face: evolve
+    meaning: generation at which external noise is turned off; -1 keeps it on
   - name: source
     type: enum
     default: random
@@ -145,16 +144,18 @@ chemistries:
     - random
     - inherit
     role: stochastic
-    meaning: 'dynamics only: source of a tape whose circular pattern is new to the population: random
-      site (papers) or the site it was written from'
+    face: evolve
+    meaning: 'source of a tape whose circular pattern is new to the population: random site (papers) or
+      the site it was written from'
   - name: max_species
     type: int
     default: 400
     min: 2
     max: 100000
     role: structural
-    meaning: 'closure only: species budget (the noise-free closure has at most 128 tapes and 128 + seed
-      machines)'
+    face: generate
+    meaning: species budget of the closure (the noise-free closure has at most 128 tapes and 128 + seed
+      machines)
   provides:
   - topology
   - stoichiometry
@@ -173,6 +174,11 @@ chemistries:
     in Artificial Life (ECAL 95), LNAI 929, 234-245. Eq. 4 with c_ij = 0 for non-reading pairs, source
     rule, figs. 1-6. https://web.archive.org/web/20170809083155/http://sacral.c.u-tokyo.ac.jp/pdf/ikegami_alife_1995.pdf
   decisions:
+  - 'Two faces: generate_network returns the noise-free closure, every machine and tape reachable from
+    the seeds by exact reactions with every reaction between them (a Chemart addition, not in the papers);
+    chemart.evolve runs the papers'' population dynamics, a frame per generation (clock: generations).
+    Each frame carries the populations, the reactions that fired in that generation (count 1 each) and
+    the observables active_mutation and reading_length computed from that frame''s populations.'
   - Bit layout from paper fig. 1, not from the prose. The prose says head and tail come first and translation
     starts at the reading frame; the figure translates the rewritten tape [1110110] from its source into
     M ebbd with the table columns in bits 0-7 (T', M' alternating) and head/tail in bits 8-15 (alternating).
@@ -208,9 +214,10 @@ chemistries:
   - 'Observed network: every reaction that fired, with count = number of generations in which it fired.
     Error-free reactions carry the mass-action rate above and frame_length L (the noise factor (1 - mu_P)^L
     is not folded in, since noise_off changes it); reactions produced only by noise have no rate and are
-    listed by index in extras.noise_induced. extras.analysis records per generation the distinct machines
-    and tapes (figs. 4-6), the active mutation rate <mu_A> of eq. 9 (w/L averaged over reading pairs with
-    weights m_i t_j and over both initial states) and the average frame length <L>.'
+    listed by index in extras.noise_induced. Each frame of chemart.evolve reports the active mutation
+    rate <mu_A> of eq. 9 (observable active_mutation: w/L averaged over reading pairs with weights m_i
+    t_j and over both initial states) and the average frame length <L> (reading_length); the numbers of
+    distinct machines and tapes of figs. 4-6 are counted from the frame''s state.'
   - 'Dropped v1 params: tape_len and machine_len (the encoding is only defined for 7-bit tapes and 16-bit
     machines); compartments (the cell model of [420] is not implemented: the ALife V paper is not openly
     available).'
