@@ -24,6 +24,9 @@ chemistries:
   family: automata
   kind: generator
   constructive: true
+  type: gas
+  clock: generations
+  duration: generations
   S:
     repr: 32-bit words; species id w<8 hex digits>, structure the 32-character bitstring (most significant
       bit first)
@@ -46,16 +49,6 @@ chemistries:
     dilution: each inserted product replaces a random molecule; M constant (paper's reactor algorithm)
     notes: M collisions make one generation; the paper runs M = 100 to 10^6 for up to 7000 generations
   params:
-  - name: method
-    type: enum
-    default: soup
-    choices:
-    - soup
-    - closure
-    role: structural
-    meaning: 'soup: the paper''s reactor algorithm, observed reactions with firing counts; closure: every
-      reaction reachable from the distinct seed words (Chemart addition, e.g. to check that a published
-      organization is closed)'
   - name: mechanism
     type: enum
     default: automata
@@ -89,7 +82,17 @@ chemistries:
     max: 1000000
     range: 'paper: 100 (fig. 3), 10^4 (figs. 2, 4), 10^5 (figs. 5-6), 10^6 (fig. 7)'
     role: population
-    meaning: 'soup size: number of random 32-bit words in the initial soup (ignored when words is given)'
+    face: evolve
+    meaning: 'soup size: number of random 32-bit words in the initial soup (ignored when words is given);
+      a generation is M collisions'
+  - name: n_seeds
+    type: int
+    default: 10
+    min: 1
+    max: 1000000
+    role: population
+    face: generate
+    meaning: number of random 32-bit words whose closure is taken (ignored when words is given)
   - name: generations
     type: int
     default: 10
@@ -97,21 +100,24 @@ chemistries:
     max: 100000
     range: 'paper: 10 (fig. 2), 140 (fig. 3), 280 (fig. 4), 1000 and 7000 (figs. 5-6)'
     role: population
-    meaning: 'soup only: run length in generations of M collisions each, elastic collisions included'
+    face: evolve
+    meaning: run length in generations of M collisions each, elastic collisions included; a frame per
+      generation. 0 runs the reactor until the caller stops reading its frames
   - name: words
     type: list
     default: []
     range: e.g. the fig. 3 organization [7240a7ef, 7240a7ea, 7240a7eb, 7240a7ee]
     role: structural
-    meaning: explicit initial multiset (soup) or seed set (closure) of 32-bit words as hex strings or
-      integers; overrides the random draw of M words
+    meaning: explicit initial multiset of the soup, or seed set of the closure, of 32-bit words as hex
+      strings or integers; overrides the random draw of M words
   - name: max_species
     type: int
-    default: 200
+    default: 50
     min: 1
     role: structural
-    meaning: 'closure only: species budget; the closure of random words is usually cut off by it (status
-      truncated)'
+    face: generate
+    meaning: species budget of the closure; the closure of random words is usually cut off by it (status
+      truncated)
   provides:
   - topology
   - stoichiometry
@@ -128,6 +134,15 @@ chemistries:
   - 'Dittrich, P. (1997). autoreac-1.0, ANSI C source code of the automata reaction (paper ref. [8], named
     there as the precise formal specification): autoReac.c runN, instructionTable01/02. https://users.fmi.uni-jena.de/~dittrich/software/autoreac-1.0.tar'
   decisions:
+  - 'Two faces: chemart.evolve runs the paper''s reactor for `generations` generations of M collisions,
+    a frame per generation (t counts generations); generate_network returns the closure of the seed words,
+    a Chemart addition used to check that published organizations are closed. Without words the closure
+    starts from n_seeds random words (default 10) and the reactor from M: the former single method parameter
+    drew M words for both, so the default closure was the 200 numerically smallest of 1000 random words
+    with no room left for their products. max_species went from 200 to 50 when the closure became the
+    default network: almost every pair of random words makes a new word, so the closure of random words
+    has nearly |S|^2 reactions (32,804 at 200 species, 1,570 at 50), and the cheap network measures (chemart.measure)
+    ran for more than two minutes on the larger one. The old closure is n_seeds=1000, max_species=200.'
   - The book gives only the idea (10.6.1). The machine is a line-by-line port of autoReac.c, which the
     paper's appendix names as the formal specification; compiled with 32-bit words it and the port agree
     on 2015 random pairs for each code table, and both reproduce paper table 2, the fig. 3, 4 and 10 reaction
@@ -149,7 +164,7 @@ chemistries:
   - 'The v1 topology param (2d-grid) and the ''space'' capability are dropped: the spatial variant is
     Banzhaf, Dittrich & Eller (1999, Physica D 125:85-104), not [233], and lattice-2d is removed from
     A.reactor.'
-  - 'Reactor: chemart.soup.soup with dilution constant runs generations x M collisions. The paper replaces
+  - 'Reactor: chemart.soup.stir with dilution constant runs generations x M collisions. The paper replaces
     a random one of the M molecules by s3; soup removes a random one of the M + 1 molecules after insertion,
     so s3 itself is removed with probability 1/(M + 1). soup also draws two distinct molecules, while
     the paper does not say whether s1 and s2 may be the same molecule. Both differences are O(1/M).'
@@ -158,11 +173,12 @@ chemistries:
     k counts the ordered pairs (a, b), (b, a) that produce s3 (1 or 2; 1 when a = b). outflow constant-total
     is the dilution term of eq. 1.'
   - 'Observed network: species are all initial words and all products; initial_state is the random soup;
-    extras.final_state the final one (most frequent first); extras.analysis records the paper''s macroscopic
-    measures per generation: diversity Div = distinct types / M (from generation 0), productivity (inserted
-    products / M) and total innovativity (never-seen products / M). The paper''s DDC is not computed.'
+    extras.final_state the final one (most frequent first); each frame after the first carries the paper''s
+    macroscopic measures of its generation as observables: productivity (inserted products / M) and total
+    innovativity (never-seen products / M); diversity Div = distinct types / M is len(frame.state) / M.
+    extras.analysis.generation_size is M. The paper''s DDC is not computed.'
   - mechanism and is the paper's reference reaction (3.1), included for fig. 2; code_table does not apply
-    to it. method closure (chemart.expand.expand over ordered pairs) is a Chemart addition.
+    to it. The closure (chemart.expand.expand over ordered pairs) is a Chemart addition.
   - Paper 3.2 says about 30% of random strings are passive and about 0.004% active self-replicators, without
     saying how many operands were tried. With the (C-verified) machine, 38% of random strings copy one
     random operand, 20-25% copy each of three, and about 0.005% (54-58 per 10^6) return themselves for

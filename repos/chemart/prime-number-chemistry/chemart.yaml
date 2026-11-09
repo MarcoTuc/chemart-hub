@@ -26,6 +26,9 @@ chemistries:
   family: core
   kind: generator
   constructive: true
+  type: gas
+  clock: collisions
+  duration: iterations
   S:
     repr: natural numbers >= 2; species id n<k>, structure the decimal integer k
     definition: implicit
@@ -41,15 +44,6 @@ chemistries:
     notes: draw two distinct molecules at random, order them, divide the larger by the smaller, reinject
       both
   params:
-  - name: method
-    type: enum
-    default: soup
-    choices:
-    - soup
-    - closure
-    role: structural
-    meaning: 'soup: the book''s stochastic run, observed reactions with counts; closure: every reaction
-      reachable from the distinct seed numbers (Chemart addition)'
   - name: M
     type: int
     default: 100
@@ -57,7 +51,8 @@ chemistries:
     max: 100000
     range: 'book and paper: 100; paper fig. 6 scans 10-200'
     role: population
-    meaning: number of molecules drawn for the initial soup (ignored when numbers is given)
+    meaning: number of molecules drawn for the initial soup, whose distinct values seed the closure (ignored
+      when numbers is given)
   - name: minn
     type: int
     default: 2
@@ -85,14 +80,17 @@ chemistries:
     max: 10000000
     range: 'appendix: 10000; figs. 2.8-2.9: 20000; paper [72]: 700 generations = 700 M'
     role: population
-    meaning: 'soup only: number of collisions, elastic ones included (M collisions = one generation)'
+    face: evolve
+    meaning: number of collisions, elastic ones included (M collisions = one generation; a frame every
+      generation). 0 collides until the caller stops reading the frames
   - name: max_species
     type: int
     default: 1000
     min: 1
     role: structural
-    meaning: 'closure only: species budget; the closure is finite, so it is truncated only when this is
-      exceeded'
+    face: generate
+    meaning: species budget of the closure; the closure is finite, so it is truncated only when this is
+      exceeded
   provides:
   - topology
   - stoichiometry
@@ -105,6 +103,10 @@ chemistries:
     7:307-314. Section 4.4, eq. 18, reactor algorithm II, figs. 5-6. https://www.cs.mun.ca/~banzhaf/papers/nanotechnology7.pdf
   - PyCellChemistry src/NumberChem.py and src/artchem/Multiset.py (Yamamoto, 2013). https://github.com/laryamamoto/PyCellChemistry
   decisions:
+  - 'Two faces: generate_network returns the closure of the distinct seed numbers (a Chemart addition);
+    chemart.evolve runs the book''s soup (NumberChem.py), a frame per generation of M collisions whose
+    observable prime_fraction is the fraction of molecules that are prime. The book''s run was the default
+    of the former single method parameter.'
   - 'Collision algorithm follows the appendix code (NumberChem.py): two molecules are removed uniformly
     at random without replacement (Multiset.expelrnd twice, so they are distinct molecules), sorted, the
     larger replaced by larger/smaller if it is strictly larger and divisible, and both reinjected. chemart.soup.soup
@@ -118,12 +120,12 @@ chemistries:
     maxn+1) in NumberChem.py), so duplicates are possible. `numbers` gives an explicit multiset instead
     (book fig. 2.7 initialises with each of 2..101 once).'
   - 'iterations counts every collision, elastic ones included (NumberChem.py loop; book 2.6.1: a generation
-    is M collisions). The soup output is status observed: species are every number present at the start
-    or produced, reactions carry firing counts, initial_state is the drawn multiset, extras.final_state
-    the final one, extras.analysis.prime_fraction the prime fraction after each generation.'
-  - 'method closure is a Chemart addition, not in the book: chemart.expand.expand of the distinct seed
-    numbers under the same rule. It is always finite (a quotient divides an existing number), so status
-    is complete unless max_species cuts it.'
+    is M collisions). The evolved network is status observed: species are every number present at the
+    start or produced, reactions carry firing counts, initial_state is the drawn multiset, extras.final_state
+    the final one; the frames'' prime_fraction is the prime fraction at the start and after each generation.'
+  - 'The closure is a Chemart addition, not in the book: chemart.expand.expand of the distinct seed numbers
+    under the same rule. It is always finite (a quotient divides an existing number), so status is complete
+    unless max_species cuts it.'
   - 'Species ids are n<k> rather than bare integers so that stoichiometry text is unambiguous (2 + 4 ->
     2 + 2 reads n2 + n4 -> 2 n2); structure holds the integer. No rate constants: the book gives none.'
   - 'The v1 seed parameter is dropped (the seed is an argument of generate_network); the v1 phenomenon
@@ -148,7 +150,7 @@ chemistries:
     30 runs per M)'
   notes: 'The canonical example of an implicit/constructive chemistry, and the canonical argument for
     why a Chemart chemistry cannot always be a finite matrix: |S| is unbounded, and the reachable subnetwork
-    depends on the seed multiset. Chemart exposes it both as the book''s soup run and as the reachability
-    closure of the seed numbers.
+    depends on the seed multiset. Chemart exposes it both as the reachability closure of the seed numbers
+    (generate_network) and as the book''s soup run (chemart.evolve).
 
     '

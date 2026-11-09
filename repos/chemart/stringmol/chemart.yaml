@@ -27,6 +27,9 @@ chemistries:
   family: bio-inspired
   kind: generator
   constructive: true
+  type: gas
+  clock: steps
+  duration: steps
   S:
     repr: 'Strings over 33 symbols: 26 template codes A..Z and 7 function codes $ > ^ ? = % }. Species
       id = the sequence with the function codes written as lowercase letters ($ s, > m, ^ t, ? i, = c,
@@ -57,25 +60,24 @@ chemistries:
     - well-stirred-multiset
     dilution: constant per-step decay of every molecule; population held by the balance of energy influx
       and decay (about 350 molecules in ALife XII)
-    notes: 'Container (method container): at every time step all molecules are visited in random order;
-      each may decay, or (if energy is left) try to bind a random unbound molecule with propensity 1-(1-a/c)^n,
-      or execute one instruction of its complex. energy_per_step units are added after each step. Methods
-      soup and closure are Chemart additions.
+    notes: 'Container (chemart.evolve, reactor container): at every time step all molecules are visited
+      in random order; each may decay, or (if energy is left) try to bind a random unbound molecule with
+      propensity 1-(1-a/c)^n, or execute one instruction of its complex. energy_per_step units are added
+      after each step. The soup reactor and the closure (generate_network) are Chemart additions.
 
       '
   params:
-  - name: method
+  - name: reactor
     type: enum
     default: container
     choices:
     - container
     - soup
-    - closure
     role: structural
+    face: evolve
     meaning: 'container: the authors'' time-stepped container with energy and decay, observed bind-execute-dissociate
-      events with counts; soup: chemart.soup.soup with instantaneous pair reactions (bind test, program
-      run to the end) and constant population; closure: all reactions reachable from the distinct seed
-      molecules, with exact copying (Chemart additions)'
+      events with counts; soup: chemart.soup with instantaneous pair reactions (bind test, program run
+      to the end) and constant population (a Chemart addition)'
   - name: molecules
     type: dict
     default:
@@ -83,7 +85,8 @@ chemistries:
     range: seed replicase of spec v0.2 app. B.1 (default); upstream configs use WWGEWLHHHRLUEUWJJJRJXUUUDYGRHJLRWWRE$BLUBO^B>C$=?>$$BLUBO%}OYHOB
       x 150; ALife XII species 9 is OBEQBXUUUDYGRHBBOSEOLHHHRLUEUOBLROORE$BLUBO^B>C$=?>$$BLUBO%}OYHOB
     role: population
-    meaning: 'initial multiset {sequence: count} (closure: the distinct sequences form the seed set)'
+    meaning: 'initial multiset {sequence: count} of the reactor; the closure takes the distinct sequences
+      as its seed set'
   - name: steps
     type: int
     default: 3000
@@ -91,13 +94,17 @@ chemistries:
     max: 100000000
     range: 'ALife XII: until extinction, modal 750000 and up to about 15e6 time steps'
     role: population
-    meaning: 'container: time steps; soup: collisions (elastic ones included); ignored by closure'
+    face: evolve
+    meaning: 'container: time steps, a frame about every steps/500 of them; soup: collisions (elastic
+      ones included), a frame per generation (as many collisions as molecules). 0 runs the reactor on
+      until the caller stops reading its frames'
   - name: energy_per_step
     type: int
     default: 25
     min: 0
     range: 'ALife XII paper: 25; upstream default ESTEP 20; later spatial configs 2500'
     role: kinetic
+    face: evolve
     meaning: energy units added to the container after every time step (container only); binding and each
       instruction cost one unit
   - name: cell_radius
@@ -106,6 +113,7 @@ chemistries:
     min: 0.001
     range: upstream CELLRAD 2500; spatial configs 1
     role: spatial
+    face: evolve
     meaning: container radius; bind propensity 1-(1-(agent_radius/cell_radius)^2)^n with n unbound molecules
       not yet visited in the step (container only)
   - name: agent_radius
@@ -114,6 +122,7 @@ chemistries:
     min: 0.0
     range: upstream AGRAD 10
     role: spatial
+    face: evolve
     meaning: molecule radius in the bind propensity (container only); must not exceed cell_radius
   - name: decay
     type: float
@@ -122,6 +131,7 @@ chemistries:
     max: 1.0
     range: 'spec v0.2 and ALife XII: 1/65^2; upstream configs 0.0005-0.0015'
     role: kinetic
+    face: evolve
     meaning: probability per time step that a visited molecule is deleted; a decaying bound molecule takes
       its partner with it (container only)
   - name: substitution_rate
@@ -131,8 +141,9 @@ chemistries:
     max: 1.0
     range: 'ALife XII: 1e-5; upstream configs (MUTATE) 1e-4-2e-3, with indel_rate equal to it'
     role: stochastic
+    face: evolve
     meaning: per-copy probability that '=' writes a neighbour of the read symbol in the symbol loop instead
-      of the symbol
+      of the symbol (the closure copies exactly)
   - name: indel_rate
     type: float
     default: 3.06125e-08
@@ -140,8 +151,9 @@ chemistries:
     max: 1.0
     range: 'upstream ALife XII default 3.06125e-8 (paper: p_s/(10 n) = 3.03e-8)'
     role: stochastic
+    face: evolve
     meaning: per-copy probability of an insertion (the copy plus a random symbol) or a deletion (the symbol
-      is skipped), 50:50
+      is skipped), 50:50 (the closure copies exactly)
   - name: max_length
     type: int
     default: 2000
@@ -165,14 +177,15 @@ chemistries:
     default: 20000
     min: 1
     role: structural
-    meaning: 'soup and closure only: instructions after which an isolated reaction that has not ended
-      counts as non-terminating (no reaction); the seed replicase needs a few hundred'
+    meaning: 'closure and soup reactor (not the container): instructions after which an isolated reaction
+      that has not ended counts as non-terminating (no reaction); the seed replicase needs a few hundred'
   - name: max_species
     type: int
     default: 100
     min: 1
     role: structural
-    meaning: 'closure only: species budget (status truncated when exceeded)'
+    face: generate
+    meaning: species budget of the closure (status truncated when exceeded)
   provides:
   - topology
   - stoichiometry
@@ -201,6 +214,16 @@ chemistries:
   - Smith, T. F. & Waterman, M. S. (1981). Identification of common molecular subsequences. J. Mol. Biol.
     147:195-197 (book [783]).
   decisions:
+  - 'Two faces: generate_network returns the closure of the distinct seed sequences (exact copying); chemart.evolve
+    runs a reactor, chosen by reactor: container (the authors'' time-stepped container, default) or soup
+    (a Chemart addition). Both reactors are gas dynamics of the same molecules, so the choice is a parameter
+    of the evolve face rather than a face of its own. The clock is steps: container time steps, or soup
+    collisions. Container frames come at step 0, after steps 1, 1 + k, 1 + 2k, ... with k = max(1, steps
+    // 500) (the sampling points of the former extras.analysis) and at the end or at extinction; soup
+    frames every generation (as many collisions as there are molecules). A frame''s state counts every
+    molecule, a bound one as the sequence it had when it bound (so the state names only species of the
+    network and sums to the population); container frames report the observables energy (units left after
+    the step''s influx) and complexes (bound pairs), soup frames the running count non_terminating.'
   - 'The machine is a line-by-line port of the upstream C++ source, including its single-precision float
     arithmetic and the order in which random numbers are drawn. Compiled upstream with rand0to1 replaced
     by a shared LCG, it and the port agree on the substitution table, on 1503 alignments (score, start
@@ -262,16 +285,15 @@ chemistries:
     molecules; extras.in_progress lists complexes still bound at the end; extras.final_state counts the
     unbound molecules. Then initial_state + sum(count * (products - reactants)) + sum over aborted and
     in_progress of (released - reactants) - decayed = final_state exactly. outflow is the per-step decay
-    probability (a first-order removal of every species). extras.analysis samples population, distinct
-    species and energy (about 500 samples); extras.epochs lists when the most abundant species changes
-    (sweeps).'
+    probability (a first-order removal of every species). The frames sample the population and energy;
+    extras.epochs lists, at the frame times, when the most abundant species changes (sweeps).'
   - 'Rates: none. Binding probability depends on the alignment and reaction duration on the program and
     energy, so no mass-action constant is published or implied.'
-  - 'Soup and closure are Chemart additions for sampling the reaction space without the container: an
-    isolated reaction runs the pair''s program to the end with unlimited energy and no decay; the first
-    molecule initiates the bind (soup draws pairs in random order). Soup tests the bind with its probability
-    and mutates on copy; closure takes every bind with P > 0 and copies exactly, but still draws ''$''
-    and ''?'' outcomes at random once per ordered pair. A reaction still running after max_exec_steps
+  - 'The soup reactor and the closure are Chemart additions for sampling the reaction space without the
+    container: an isolated reaction runs the pair''s program to the end with unlimited energy and no decay;
+    the first molecule initiates the bind (soup draws pairs in random order). Soup tests the bind with
+    its probability and mutates on copy; closure takes every bind with P > 0 and copies exactly, but still
+    draws ''$'' and ''?'' outcomes at random once per ordered pair. A reaction still running after max_exec_steps
     instructions counts as non-terminating (no reaction; counted in extras.non_terminating).'
   - 'Undefined behaviour in the source, fixed choices: an alignment against an empty string (the C result
     is uninitialised) scores 0; reads beyond the string buffer return the terminator.'
