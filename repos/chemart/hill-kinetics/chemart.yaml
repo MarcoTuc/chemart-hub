@@ -20,6 +20,7 @@ chemistries:
   family: systems-biology
   kind: generator
   constructive: false
+  type: given
   S:
     repr: gene G, protein P, complex C, gene product X
     definition: explicit

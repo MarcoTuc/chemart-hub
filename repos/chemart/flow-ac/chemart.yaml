@@ -23,6 +23,7 @@ chemistries:
   family: spatial
   kind: generator
   constructive: false
+  type: given
   S:
     repr: ordinary molecular species placed in a 2D domain and moved along a vector field
     definition: explicit
