@@ -28,6 +28,9 @@ chemistries:
   family: automata
   kind: generator
   constructive: true
+  type: gas
+  clock: draws
+  duration: steps
   S:
     repr: single strands over {A, C, G, T}; species id is the strand itself, structure the enzymes it
       codes with their binding base ('cop-swi-rpu-ina-swi-cop:G'). Double strands exist only while enzymes
@@ -53,21 +56,11 @@ chemistries:
     reactor:
     - sequential-vm
     - well-stirred-multiset
-    dilution: 'closure: none; soup: a random molecule is removed after each productive event, keeping
+    dilution: 'closure: none; evolve: a random molecule is removed after each productive event, keeping
       the population size constant (Chemart addition)'
     notes: The book's system interprets strands one at a time (10.5.2). Varetto's simulations with limited
       resources and a lethal factor are not reproduced
   params:
-  - name: method
-    type: enum
-    default: closure
-    choices:
-    - closure
-    - soup
-    role: structural
-    meaning: 'closure: every reaction reachable from the seed strands (status complete or truncated);
-      soup: random draws from a population with chemart.soup, returning the reactions that fired with
-      counts (status observed)'
   - name: reaction
     type: enum
     default: self
@@ -108,17 +101,17 @@ chemistries:
     - rightmost
     range: 'Hofstadter and Morris: any matching unit (all or random); Varetto: rightmost'
     role: stochastic
-    meaning: 'which unit an enzyme binds when several hold its base: all lists every outcome as its own
-      reaction (closure only), random draws one with the generator, leftmost/rightmost take the first/last
-      in the bound strand''s reading direction'
+    meaning: 'which unit an enzyme binds when several hold its base: all lists every outcome of the closure
+      as its own reaction (chemart.evolve reads it as random), random draws one with the generator, leftmost/rightmost
+      take the first/last in the bound strand''s reading direction'
   - name: strands
     type: list
     default:
     - CGATTCGAATCG
     range: Snare's self-replicators CGATTCGAATCG and CGATTAATTAATCG; GEB's TAGATCCAGTCCATCGA
     role: structural
-    meaning: seed strands (closure) or the strand types of the initial population (soup); an empty list
-      draws n_random random strands of strand_length bases
+    meaning: seed strands of the closure and strand types of the evolved population; an empty list draws
+      n_random random strands of strand_length bases
   - name: n_random
     type: int
     default: 4
@@ -140,20 +133,22 @@ chemistries:
     max: 1000
     role: structural
     meaning: longest daughter strand kept; an outcome with a longer daughter is dropped (closure status
-      truncated, elastic in the soup)
+      truncated, elastic when evolving)
   - name: max_species
     type: int
     default: 200
     min: 1
     max: 100000
     role: structural
-    meaning: 'closure only: species budget; the status becomes truncated when it cuts the closure off'
+    face: generate
+    meaning: species budget of the closure; the status becomes truncated when it cuts the closure off
   - name: max_branches
     type: int
     default: 1000
     min: 1
     max: 1000000
     role: structural
+    face: generate
     meaning: 'binding_tiebreak all: most distinct intermediate complexes followed while enumerating binding
       choices for one reactant; beyond it that reactant''s reactions are dropped and the status becomes
       truncated'
@@ -163,15 +158,18 @@ chemistries:
     min: 1
     max: 100000
     role: population
-    meaning: 'soup only: copies of each seed strand in the initial population, whose size the soup keeps
-      constant'
+    face: evolve
+    meaning: copies of each seed strand in the initial population, whose size stays constant
   - name: steps
     type: int
     default: 2000
     min: 0
     max: 10000000
     role: stochastic
-    meaning: 'soup only: number of draws (one strand for self, an ordered gene/target pair for pair)'
+    face: evolve
+    meaning: number of draws (one strand for self, an ordered gene/target pair for pair), elastic ones
+      included; a frame every generation (as many draws as the initial population has strands). 0 runs
+      the draws on until the caller stops reading the frames
   provides:
   - topology
   - stoichiometry
@@ -224,8 +222,8 @@ chemistries:
     to 0 there).'
   - binding_tiebreak all enumerates every binding choice of every enzyme and gives one reaction per distinct
     multiset of daughters; with random the closure samples one outcome per reactant (fixed by the seed),
-    the soup a fresh one per draw. leftmost/rightmost are in the bound strand's reading direction; rightmost
-    is Varetto's rule (Snare 2.4).
+    chemart.evolve a fresh one per draw. leftmost/rightmost are in the bound strand's reading direction;
+    rightmost is Varetto's rule (Snare 2.4).
   - 'Stoichiometry: in self the strand is consumed and its daughters are produced (a self-replicator is
     s -> 2 s, so s shows as a catalyst); in pair the gene strand is translated without being consumed
     and appears on both sides. The book''s fig. 10.6 caption (''enzymes coded by the strand operate on
@@ -236,9 +234,15 @@ chemistries:
     kept only for random seeds; lethal_factor is dropped because Varetto's definition was not accessible.
   - 'Truncation: strands can grow by insertion, so max_length drops outcomes with longer daughters and
     max_branches bounds the enumeration of binding choices; either makes the closure status truncated.'
-  - 'Soup (Chemart addition): chemart.soup with constant dilution; a random molecule is removed after
-    each productive event, so outflow is constant-total. Hofstadter''s generational puzzle (every strand
-    replaced by its daughters each generation) is not a separate method.'
+  - 'Two faces: generate_network returns the closure of the seed strands; chemart.evolve runs a well-stirred
+    population (formerly method soup, a Chemart addition) with chemart.soup.stir and constant dilution:
+    a random molecule is removed after each productive event, so outflow is constant-total. A frame comes
+    every generation, as many draws as the initial population has strands (copies x seed strands). Hofstadter''s
+    generational puzzle (every strand replaced by its daughters each generation) is not modelled as a
+    run.'
+  - 'A population draws one outcome per collision, so chemart.evolve reads binding_tiebreak all (the default,
+    which lists every outcome in the closure) as random: each draw picks a binding site at random. The
+    former soup method refused all instead; with random it gives the same runs as before.'
   reference_impl: Snare (1999) Typogenetics.py (appendix A.1 of the thesis); kortschak/typo (Go)
   phenomena:
   - 'self-replicating strands built as inverted repeats: CGATTCGAATCG and CGATTAATTAATCG -> 2 copies when

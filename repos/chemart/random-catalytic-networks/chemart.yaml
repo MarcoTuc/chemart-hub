@@ -21,6 +21,7 @@ chemistries:
   family: evolutionary-dynamics
   kind: generator
   constructive: false
+  type: generator
   S:
     repr: n abstract species X_1..X_n with no internal structure
     definition: explicit

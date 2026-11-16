@@ -32,6 +32,7 @@ chemistries:
   family: rewriting
   kind: formalism
   constructive: true
+  type: generator
   S:
     repr: 'words over an alphabet whose symbols are one character plus an optional _subscript (a_r, F_b);
       brackets delimit branches and F f + - are turtle commands. reading words: species w<i> in discovery

@@ -22,6 +22,7 @@ chemistries:
   family: wet
   kind: generator
   constructive: false
+  type: given
   S:
     repr: 3 genes G_i, 3 gene-protein complexes C_i, 3 mRNAs M_i, 3 repressor proteins P_i (LacI, TetR,
       lambda-cI)
