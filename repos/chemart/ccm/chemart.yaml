@@ -29,6 +29,9 @@ chemistries:
   family: application
   kind: generator
   constructive: false
+  type: gas
+  clock: tests
+  duration: max_tests
   S:
     repr: 'atoms with a type and a state, optionally connected by links; the whole working memory is ONE
       point of the search space. A species is an atom in a state: q<row>=<column> for a queen (n-queens),
@@ -189,11 +192,11 @@ chemistries:
   - name: max_tests
     type: int
     default: 200000
-    min: 1
+    min: 0
     max: 1000000000
     role: population
     meaning: budget of rule tests (LHS matches); rules without catalysts never terminate and always stop
-      here
+      here. 0 lifts the budget, so only the search's own termination ends the run
   provides:
   - topology
   - stoichiometry
@@ -263,7 +266,8 @@ chemistries:
   - 'Termination as in the demos'' loopTick: with threshold T (1000 + N^2 for queens, 1000 for colouring),
     when T tests in a row fail the run stops if fewer than 20 T tests were made, else T doubles (the 1996
     manuscript''s ''maximum number of trials increased to 1/20 of the total number of LHS tests''). max_tests
-    is a hard budget. GOD is never used by the dynamics; it is only reported (analysis).'
+    is a hard budget. GOD is never used by the dynamics; it is only reported (the frames'' observable
+    and extras.analysis).'
   - 'Published counts: FUZZ-IEEE''95 table 2 reports 112 reactions and 4406 LHS matchings on average for
     the USA map with the variable-catalyst rule and FAM, run with ''a slightly modified version of the
     rule and LOD'' in SOOC-94; Chemart''s demo-based rule gives about 117 reactions and 2500 tests (10
@@ -278,9 +282,18 @@ chemistries:
   - 'Observed network: species are the initial atom states and every atom state produced; reactions are
     the distinct accepted rule applications (changed atoms first, then catalysts on both sides) with counts;
     initial_state has one of each initial atom state. extras.analysis: tests, reactions, uphill_reactions
-    (accepted only thanks to frustration), terminated, god_initial/final/max, mod_final, solved, first_solution_reaction,
-    god (GOD after each reaction, first 20000), mean_frustration_final; extras.instance (N, or vertices,
-    edges, colors, mean_degree), initial_assignment and final_assignment. No rate constants: CCM has none.'
+    (accepted only thanks to frustration), terminated, god_initial/final/max, mod_final, solved, first_solution_reaction
+    (index of the first reaction after which GOD is at its maximum), mean_frustration_final; extras.instance
+    (N, or vertices, edges, colors, mean_degree), initial_assignment and final_assignment. No rate constants:
+    CCM has none.'
+  - chemart.evolve yields a frame after every accepted reaction, the only events that change the working
+    memory; frame 0 is the initial assignment. Time is the number of rule tests so far (LHS matches; a
+    colouring draw skipped because the vertex has too few neighbours is not a test), and a last frame
+    at the final test is added when the run ended on failed tests. A frame's state holds one of each current
+    atom state, its fired the reaction just accepted, and its observable god the global order degree,
+    the curve Kanada plots against reactions (HICSS-27 fig. 8). The former extras.analysis.god series
+    (cut at 20,000 entries) is this observable, uncut. generate_network runs the reactor to the end and
+    returns the network.
   - 'v1 parameters: the LOD callable becomes the LOD fixed by the problem; catalysts (bool) becomes the
     rule enum; c keeps its meaning (FAM growth factor) with f0 added.'
   phenomena:

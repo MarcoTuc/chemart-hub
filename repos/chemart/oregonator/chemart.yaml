@@ -24,6 +24,7 @@ chemistries:
   family: wet
   kind: generator
   constructive: false
+  type: given
   S:
     repr: A, B (buffered reactants), X (autocatalyst, HBrO2), Y (inhibitor, Br-), Z (oxidised metal ion,
       e.g. Ce(IV)), P, Q (products)

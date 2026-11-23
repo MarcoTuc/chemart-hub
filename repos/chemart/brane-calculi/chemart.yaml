@@ -26,6 +26,7 @@ chemistries:
   family: rewriting
   kind: formalism
   constructive: true
+  type: generator
   S:
     repr: 'a system is a nest of membranes s[P] whose branes s are compositions of actions (s|t, !s, a.s),
       plus free molecules; ASCII notation with '','' for the composition of systems (paper ∘), [ ] for

@@ -30,6 +30,9 @@ chemistries:
   family: rewriting
   kind: generator
   constructive: true
+  type: gas
+  clock: collisions
+  duration: collisions
   S:
     repr: closed normal forms of untyped lambda-expressions modulo renaming of bound variables; species
       id is the de Bruijn string (^ abstraction, (M)N application, 1-based indices, e.g. ^^2 for λx1.λx2.x1),
@@ -59,16 +62,6 @@ chemistries:
     notes: 'The ODE picture is eq. 18: x_i'' = sum_jk a^i_jk x_j x_k - x_i Phi, unit rate per ordered
       collision; closure-mode networks carry these rates with a constant-total outflow.'
   params:
-  - name: method
-    type: enum
-    default: soup
-    choices:
-    - soup
-    - closure
-    role: structural
-    meaning: 'soup: the stochastic flow reactor of Fontana & Buss 5.3, observed reactions with firing
-      counts; closure: every reaction reachable from the seed set (the closure A* of eq. 28), complete
-      or cut off by max_species'
   - name: M
     type: int
     default: 100
@@ -76,8 +69,16 @@ chemistries:
     max: 100000
     range: 'paper: 1000 (reactor capacity, 5.3), 3000 for the L2 merger (6.4.1); book: 1000..3000'
     role: population
+    face: evolve
     meaning: reactor size; without terms, the number of distinct random normal forms that seed the reactor
-      (or the closure)
+  - name: n_seeds
+    type: int
+    default: 10
+    min: 1
+    max: 100000
+    role: population
+    face: generate
+    meaning: without terms, the number of distinct random normal forms whose closure is taken
   - name: collisions
     type: int
     default: 2000
@@ -85,7 +86,9 @@ chemistries:
     max: 10000000
     range: 'paper figs. 4-5: 5*10^5..6*10^5; Mathis et al. 2024: 10^5..6*10^6'
     role: population
-    meaning: 'soup only: number of collisions (elastic ones included)'
+    face: evolve
+    meaning: number of collisions (elastic ones included); a frame every M collisions. 0 runs the reactor
+      until the caller stops reading its frames
   - name: terms
     type: list
     default: []
@@ -184,12 +187,13 @@ chemistries:
       (standardization) before reduction'
   - name: max_species
     type: int
-    default: 200
+    default: 50
     min: 1
     max: 100000
     role: structural
-    meaning: 'closure only: species budget; organisations are usually infinite, so their closure is cut
-      off (status truncated)'
+    face: generate
+    meaning: species budget of the closure; organisations are usually infinite, so their closure is cut
+      off (status truncated)
   provides:
   - topology
   - stoichiometry
@@ -211,6 +215,10 @@ chemistries:
   - 'Fontana, W. & Buss, L. W. (1994). What would be conserved if ''the tape were played twice''? PNAS
     91(2):757-761 (abstract only; the PMC copy is a page scan): the three generic levels. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC43028/'
   decisions:
+  - 'Two faces: generate_network returns the closure A* (eq. 28) of the seed terms, cut off by max_species;
+    chemart.evolve runs the stochastic flow reactor of 5.3, a frame every M collisions. Without terms
+    the closure starts from n_seeds random normal forms and the reactor from M: the seed set of a closure
+    and the capacity of a reactor are different quantities, which the former single method parameter blurred.'
   - Terms use de Bruijn indices, so identification modulo renaming (paper 4.4.3) is equality; the paper's
     standardized names (x indexed by binder occurrence) are used for the structure string, and the species
     id is the de Bruijn string.
@@ -269,8 +277,8 @@ chemistries:
   - 'Mathis et al. 2024: unfiltered runs with the original code sometimes also give large organisations
     (tens to hundreds of species) rather than a single copier'
   notes: 'Historically the most important AC: the notions of closure, self-maintenance and organisation
-    come from here. The closure of an organisation is usually infinite, so method closure is normally
-    truncated; analysis.self_maintaining reports whether every species of the returned set is produced
-    inside it (eq. 38).
+    come from here. The closure of an organisation is usually infinite, so the closure (generate_network)
+    is normally truncated; analysis.self_maintaining reports whether every species of the returned set
+    is produced inside it (eq. 38).
 
     '
