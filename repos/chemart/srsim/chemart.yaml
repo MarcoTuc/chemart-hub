@@ -28,6 +28,9 @@ chemistries:
   family: systems-biology
   kind: framework
   constructive: true
+  type: gas
+  clock: time
+  duration: steps
   S:
     repr: 'elementary molecules (EM): spheres with a mass, a radius and a diffusion coefficient, carrying
       named components (binding sites) at fixed polar coordinates (dist, theta, phi) and optional internal
@@ -152,11 +155,12 @@ chemistries:
   - name: steps
     type: int
     default: 1500
-    min: 1
+    min: 0
     max: 200000
     range: the published runs are 100000 to 3000000 steps
     role: kinetic
-    meaning: molecular-dynamics steps; reactions are looked for after every one of them
+    meaning: molecular-dynamics steps; reactions are looked for after every one of them. 0 runs the molecular
+      dynamics on until the caller stops reading its frames
   - name: dt
     type: float
     default: 0.02
@@ -372,6 +376,12 @@ chemistries:
   - 'The network has status ''observed'': it is the set of complex-level reactions that fired, with counts.
     Nothing is enumerated in advance - that is the point of rule-based modelling - so the network is a
     sample of an unbounded species set, and the rule set itself is kept in extras.rules and extras.bngl.'
+  - chemart.evolve yields a frame per molecular-dynamics step; frame 0 is the initial placement. The clock
+    is the simulated time (step x dt), the unit the network's rate constants are given in, so a frame
+    can be set beside an ODE or SSA run of the observed network. A frame's state counts the complexes
+    and its fired lists the complex-level reactions of that step; there are no observables, since the
+    assembly statistics of extras.analysis are whole-run results (final counts and means over the second
+    half of the run). generate_network runs the simulation and returns the network.
   phenomena:
   - 'geometry decides the reachable species: paper fig. 3 shows rods from a 180-degree monomer and closed
     squares from a 90-degree one; Chemart''s tests add that with 60 degrees triangles close and with 120

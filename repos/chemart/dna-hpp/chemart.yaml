@@ -29,6 +29,7 @@ chemistries:
   family: wet
   kind: wet
   constructive: true
+  type: generator
   S:
     repr: 'single-stranded DNA oligonucleotides, Species.structure carrying the sequence written 5'' ->
       3'': the code word O_i of each vertex (a random 20-mer), its Watson-Crick complement Obar_i (the
